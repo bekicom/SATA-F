@@ -1,0 +1,514 @@
+/* ==================== MODERN DASHBOARD - OPTIMIZED ==================== */
+.modern-dashboard {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #7080c9 0%, #9f5be4 100%);
+  padding: 24px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  position: relative;
+  overflow-x: hidden;
+}
+
+.modern-dashboard::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -50%;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* ==================== HEADER SECTION ==================== */
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+  gap: 20px;
+  animation: slideInFromTop 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  z-index: 10;
+}
+
+.header-content {
+  color: white;
+}
+
+.dashboard-title {
+  font-size: 2.25rem;
+  font-weight: 800;
+  margin: 0 0 6px 0;
+  color: white;
+  text-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  letter-spacing: -0.02em;
+}
+
+.dashboard-subtitle {
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.92);
+  font-weight: 500;
+  margin: 0;
+  letter-spacing: 0.3px;
+}
+
+/* ==================== DATE PICKER ==================== */
+.modern-datepicker {
+  padding: 10px 20px !important;
+  border-radius: 14px !important;
+  border: 2px solid rgba(255, 255, 255, 0.2) !important;
+  background: rgba(255, 255, 255, 0.15) !important;
+  backdrop-filter: blur(20px) !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  color: white !important;
+  transition: all 0.3s ease !important;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08) !important;
+  cursor: pointer !important;
+}
+
+.modern-datepicker:hover {
+  background: rgba(255, 255, 255, 0.22) !important;
+  border-color: rgba(255, 255, 255, 0.4) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.12) !important;
+}
+
+.ant-picker-input > input {
+  color: white !important;
+  font-weight: 600 !important;
+}
+
+.ant-picker-suffix {
+  color: white !important;
+}
+
+/* ==================== STATS GRID ==================== */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+  margin-bottom: 24px;
+  position: relative;
+  z-index: 10;
+}
+
+/* ==================== STAT CARDS - SMALLER ==================== */
+.stat-card {
+  background: white;
+  border-radius: 18px;
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  animation: scaleIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  cursor: pointer;
+}
+
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-6px) scale(1.01);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.18);
+}
+
+.stat-card:hover::before {
+  opacity: 1;
+  animation: rotate 6s linear infinite;
+}
+
+.stat-card:nth-child(1) { animation-delay: 0.1s; }
+.stat-card:nth-child(2) { animation-delay: 0.15s; }
+.stat-card:nth-child(3) { animation-delay: 0.2s; }
+
+.stat-income { border-left: 4px solid #10b981; }
+.stat-budget { border-left: 4px solid #3b82f6; }
+.stat-expense { border-left: 4px solid #ef4444; }
+
+/* ==================== STAT ICONS - SMALLER ==================== */
+.stat-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  flex-shrink: 0;
+  transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  position: relative;
+}
+
+.stat-income .stat-icon { 
+  background: linear-gradient(135deg, #d1fae5 0%, #10b981 100%);
+  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.25);
+}
+
+.stat-budget .stat-icon { 
+  background: linear-gradient(135deg, #dbeafe 0%, #3b82f6 100%);
+  box-shadow: 0 8px 24px rgba(59, 130, 246, 0.25);
+}
+
+.stat-expense .stat-icon { 
+  background: linear-gradient(135deg, #fee2e2 0%, #ef4444 100%);
+  box-shadow: 0 8px 24px rgba(239, 68, 68, 0.25);
+}
+
+.stat-card:hover .stat-icon {
+  transform: scale(1.12) rotate(8deg);
+}
+
+/* ==================== STAT INFO ==================== */
+.stat-info {
+  flex: 1;
+  position: relative;
+  z-index: 1;
+}
+
+.stat-label {
+  font-size: 0.8rem;
+  color: #6b7280;
+  font-weight: 700;
+  margin: 0 0 6px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+.stat-value {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: #1f2937;
+  margin: 0;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.stat-currency {
+  font-size: 0.875rem;
+  color: #9ca3af;
+  font-weight: 600;
+  margin-left: 6px;
+  letter-spacing: 0.3px;
+}
+
+/* ==================== DAILY STATS - SMALLER ==================== */
+.daily-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+  margin-bottom: 24px;
+  position: relative;
+  z-index: 10;
+}
+
+.daily-card {
+  background: white;
+  border-radius: 18px;
+  padding: 20px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: scaleIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  position: relative;
+  overflow: hidden;
+}
+
+.daily-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(90deg, #667eea, #764ba2);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.4s ease;
+}
+
+.daily-card:hover::before {
+  transform: scaleX(1);
+}
+
+.daily-card:nth-child(1) { animation-delay: 0.25s; }
+.daily-card:nth-child(2) { animation-delay: 0.3s; }
+
+.daily-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.16);
+}
+
+.daily-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 0 16px 0;
+  letter-spacing: -0.01em;
+}
+
+/* ==================== DAILY ITEMS - COMPACT ==================== */
+.daily-items {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.daily-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+  border-radius: 12px;
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+  position: relative;
+}
+
+.daily-item:hover {
+  background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+  transform: translateX(6px);
+  border-color: rgba(102, 126, 234, 0.15);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+}
+
+/* ==================== ITEM ICONS - SMALLER ==================== */
+.item-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  background: white;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  flex-shrink: 0;
+  transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.daily-item:hover .item-icon {
+  transform: scale(1.08) rotate(4deg);
+}
+
+.item-info {
+  flex: 1;
+  position: relative;
+  z-index: 1;
+}
+
+.item-label {
+  font-size: 0.8rem;
+  color: #6b7280;
+  font-weight: 700;
+  margin: 0 0 4px 0;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.item-value {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+/* ==================== CHARTS SECTION ==================== */
+.charts-section {
+  display: grid;
+  gap: 24px;
+  position: relative;
+  z-index: 10;
+}
+
+.chart-container {
+  background: white;
+  border-radius: 18px;
+  padding: 24px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+  animation: scaleIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation-delay: 0.35s;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.chart-container:hover {
+  box-shadow: 0 18px 55px rgba(0, 0, 0, 0.16);
+}
+
+.chart-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 0 20px 0;
+  letter-spacing: -0.01em;
+}
+
+.chart-wrapper {
+  height: 380px;
+  position: relative;
+}
+
+/* ==================== ANIMATIONS ==================== */
+@keyframes slideInFromTop {
+  from {
+    opacity: 0;
+    transform: translateY(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(15px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ==================== RESPONSIVE DESIGN ==================== */
+@media (max-width: 1200px) {
+  .stats-grid {
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 18px;
+  }
+  
+  .stat-value {
+    font-size: 1.6rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .modern-dashboard {
+    padding: 16px;
+  }
+
+  .dashboard-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .dashboard-title {
+    font-size: 1.875rem;
+  }
+
+  .dashboard-subtitle {
+    font-size: 0.925rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .stat-card {
+    padding: 18px 20px;
+  }
+
+  .stat-icon {
+    width: 54px;
+    height: 54px;
+    font-size: 1.75rem;
+  }
+
+  .stat-value {
+    font-size: 1.5rem;
+  }
+
+  .daily-stats {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .daily-card {
+    padding: 18px;
+  }
+
+  .daily-title {
+    font-size: 1.05rem;
+  }
+
+  .chart-container {
+    padding: 20px;
+  }
+
+  .chart-title {
+    font-size: 1.125rem;
+  }
+
+  .chart-wrapper {
+    height: 300px;
+  }
+}
+
+@media (max-width: 480px) {
+  .modern-dashboard {
+    padding: 12px;
+  }
+
+  .dashboard-title {
+    font-size: 1.625rem;
+  }
+
+  .stat-card {
+    padding: 16px;
+    gap: 14px;
+  }
+
+  .stat-icon {
+    width: 50px;
+    height: 50px;
+    font-size: 1.6rem;
+  }
+
+  .stat-value {
+    font-size: 1.375rem;
+  }
+
+  .daily-card {
+    padding: 16px;
+  }
+
+  .chart-container {
+    padding: 16px;
+  }
+
+  .chart-title {
+    font-size: 1rem;
+  }
+
+  .chart-wrapper {
+    height: 250px;
+  }
+}

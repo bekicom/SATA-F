@@ -1,0 +1,176 @@
+@import url("https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300..800;1,300..800&family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap");
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  font-family: "Open Sans", sans-serif;
+  letter-spacing: 0.03rem;
+  user-select: none;
+}
+body::-webkit-scrollbar,
+div::-webkit-scrollbar {
+  display: none;
+}
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+input {
+  outline: none;
+}
+
+button {
+  cursor: pointer;
+}
+
+.page {
+  width: 100%;
+  /* overflow-x: auto; */
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.modal {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: calc(100% - 270px);
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  backdrop-filter: blur(2px);
+  z-index: -1;
+}
+
+.modal.active {
+  z-index: 99;
+}
+
+.modal-content {
+  max-width: 540px;
+  width: 100%;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: #32325d40 0px 50px 100px -20px, #0000004d 0px 30px 60px -30px;
+  transform: translateY(-20%);
+}
+
+.modal-header {
+  width: 100%;
+  height: 50px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #e0e0e0;
+  padding: 0 20px;
+}
+
+.modal-header > h1 {
+  font-size: 20px;
+  font-weight: 500;
+}
+
+.modal-header > button {
+  display: flex;
+  font-size: 24px;
+  color: #333;
+  background: transparent;
+  border: none;
+}
+.modal-header > button:active {
+  transform: scale(0.9);
+}
+
+.modal-body {
+  width: 100%;
+  padding: 20px;
+}
+.form_body {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.form_body > label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.form_body > label > input,
+.form_body > label > select {
+  width: 100%;
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+.form_body > button {
+  padding: 10px 20px;
+  background: #1677ff;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  max-width: 100px;
+}
+.log-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 12px;
+}
+.page-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.modal_form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.modal_form > input,
+.modal_form > select {
+  width: 100%;
+  height: 35px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  padding-inline: 6px;
+}
+.phone_input > input {
+  height: 35px;
+  padding-inline: 6px;
+  border-radius: 0 6px 6px 0;
+  border: 1px solid #ccc;
+  border-left: none;
+}
+.modal_form > button {
+  padding: 10px 20px;
+  background: #1677ff;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  width: 100%;
+}
+/* .ant-table-wrapper {
+  overflow-x: scroll !important;
+  overflow-y: scroll !important;
+  width: 100%;
+} */
+
+

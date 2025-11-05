@@ -1,0 +1,76 @@
+.filter_container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  border-radius: 6px;
+  box-shadow: 0 0 10px rgba(128, 128, 128, 0.346);
+
+  background-color: #fff;
+}
+.filter_head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-inline: 12px;
+  padding-block: 12px;
+  font-size: 20px;
+  color: #666666;
+  border-bottom: 1px solid #e4e7f3;
+}
+.filter_body {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  padding-block: 12px;
+  padding-inline: 12px;
+  gap: 12px;
+  border-bottom: 1px solid #e4e7f3;
+}
+.filter_body > label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.filter_body > label > p {
+  font-size: 16px;
+  color: #666666;
+}
+.filter_body > label > select {
+  width: 100px;
+  height: 40px;
+  border-radius: 3px;
+  padding-inline: 6px;
+  border: 1px solid #e4e7f3;
+  outline: none;
+}
+.filter_body > label > input {
+  width: 300px;
+  height: 40px;
+  border-radius: 3px;
+  padding-inline: 6px;
+  border: 1px solid #e4e7f3;
+  outline: none;
+}
+.filter_footer {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  justify-content: end;
+  padding-inline: 12px;
+  padding-block: 12px;
+}
+.filter_footer > button {
+  width: 100px;
+  height: 40px;
+  border-radius: 6px;
+  border: none;
+  outline: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
+  font-size: 16px;
+  color: #fff;
+  background-color:#1677ff;
+}
