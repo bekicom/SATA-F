@@ -28,7 +28,7 @@ export const Login = memo(() => {
   return (
     <div className="login">
       <form className="login-form" onSubmit={handleSubmit}>
-        <h1>SCHOOL-21</h1>
+        <h1>STANFORD</h1>
         <label>
           <span>Login</span>
           <input
