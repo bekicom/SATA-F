@@ -148,6 +148,9 @@ export const Debt = () => {
 
   const handleCancel = () => {
     setPaymentModal(false);
+    setPaymentAmount("");
+    setPaymentMonth("");
+    setPaymentType("");
   };
 
   const columns = [
@@ -316,21 +319,31 @@ export const Debt = () => {
           <Input
             value={formatNumberWithSpaces(paymentAmount)}
             onChange={(e) => {
-              const rawValue = e.target.value.replace(/\s/g, ""); // Remove spaces
+              const rawValue = e.target.value.replace(/\s/g, "");
               setPaymentAmount(rawValue);
             }}
             placeholder="To'lov miqdori"
             style={{ marginBottom: 16 }}
             required
           />
-          <DatePicker
-            onChange={(date, dateString) => setPaymentMonth(dateString)}
-            format="MM-YYYY"
-            picker="month"
+
+          <Select
             style={{ width: "100%", marginBottom: 16 }}
+            value={paymentMonth}
+            onChange={(value) => setPaymentMonth(value)}
             placeholder="Oyni tanlang"
             required
-          />
+          >
+            {months.map((month) => (
+              <Option
+                key={month.key}
+                value={`${month.key}-${new Date().getFullYear()}`}
+              >
+                {month.name} {new Date().getFullYear()}
+              </Option>
+            ))}
+          </Select>
+
           <Select
             style={{ width: "100%" }}
             value={paymentType}

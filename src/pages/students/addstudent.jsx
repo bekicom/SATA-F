@@ -7,14 +7,15 @@ import {
   useUpdateStudentMutation,
 } from "../../context/service/students.service";
 import { useGetClassQuery } from "../../context/service/class.service";
-import { Button } from "antd";
+import { Button, message } from "antd";
 
 const AddStudent = () => {
   const navigate = useNavigate();
   const [addStudent, { isLoading, isSuccess }] = useAddStudentMutation();
   const { id } = useParams();
-  const { data = [] } = useGetClassQuery();
-  const { data: studentData = [] } = useGetCoinQuery();
+  const { data = [], refetch } = useGetClassQuery();
+  const { data: studentData = [], refetch: refetchStudents } =
+    useGetCoinQuery();
   const [updateStudent] = useUpdateStudentMutation();
 
   // States
@@ -30,7 +31,7 @@ const AddStudent = () => {
   const [admissionDate, setAdmissionDate] = useState("");
   const [passportNumber, setPassportNumber] = useState("");
   const [monthlyFee, setMonthlyFee] = useState("");
-  const [employeeNo, setEmployeeNo] = useState(""); // ✅ yangi field
+  const [employeeNo, setEmployeeNo] = useState("");
   const schoolId = localStorage.getItem("school_id");
 
   useEffect(() => {
@@ -47,7 +48,7 @@ const AddStudent = () => {
         setPassportNumber(editingStudent.passportNumber);
         setGroupId(editingStudent.groupId._id);
         setMonthlyFee(editingStudent.monthlyFee);
-        setEmployeeNo(editingStudent.employeeNo || ""); // ✅ employeeNo ni editda ko‘rsatish
+        setEmployeeNo(editingStudent.employeeNo || "");
 
         const formattedBirthDate = editingStudent.birthDate
           ? new Date(editingStudent.birthDate).toISOString().split("T")[0]
@@ -66,7 +67,7 @@ const AddStudent = () => {
     e.preventDefault();
 
     if (!firstName || !lastName || !phoneNumber || !groupId || !employeeNo) {
-      alert("Iltimos, barcha kerakli maydonlarni to'ldiring.");
+      message.error("Iltimos, barcha kerakli maydonlarni to'ldiring.");
       return;
     }
 
@@ -84,22 +85,28 @@ const AddStudent = () => {
       passportNumber,
       schoolId,
       monthlyFee,
-      employeeNo, // ✅ backendga yuborish
+      employeeNo,
     };
 
     if (id) {
       try {
         await updateStudent({ id: id, body: body }).unwrap();
-        alert("O'quvchi muvaffaqiyatli yangilandi!");
+        message.success("O'quvchi muvaffaqiyatli yangilandi!");
+        await refetchStudents(); // ✅ Cache yangilash
         navigate("/student");
       } catch (err) {
         console.error("Xatolik:", err);
+        message.error("O'quvchini yangilashda xatolik yuz berdi!");
       }
     } else {
       try {
         await addStudent(body).unwrap();
+        message.success("O'quvchi muvaffaqiyatli qo'shildi!");
+        await refetchStudents(); // ✅ Cache yangilash
+        navigate("/student");
       } catch (err) {
         console.error("Xatolik:", err);
+        message.error("O'quvchini qo'shishda xatolik yuz berdi!");
       }
     }
   };
@@ -110,25 +117,16 @@ const AddStudent = () => {
     }
   }, [id, data]);
 
-  useEffect(() => {
-    if (isSuccess) {
-      alert("O'quvchi muvaffaqiyatli qo'shildi!");
-      navigate("/student");
-    }
-  }, [isSuccess, navigate]);
-
   return (
     <div className="page">
       <div className="page-header">
-        <h1>O'quvchi qo'shish</h1>
+        <h1>{id ? "O'quvchini tahrirlash" : "O'quvchi qo'shish"}</h1>
         <Button type="primary" onClick={() => navigate("/student")}>
           <FaChevronLeft />
         </Button>
       </div>
 
       <form className="form_body" autoComplete="off" onSubmit={handleSubmit}>
-        {/* Ism, Familiya, va boshqa fieldlar */}
-
         <label htmlFor="employeeNo">
           <p>Employee No (QR uchun)</p>
           <input

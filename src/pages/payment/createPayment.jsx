@@ -297,14 +297,22 @@ const CreatePayment = () => {
             required
           />
 
-          <DatePicker
-            onChange={(date, dateString) => setPaymentMonth(dateString)}
-            format="MM-YYYY"
-            picker="month"
+          <Select
             style={{ width: "100%", marginBottom: 16 }}
+            value={paymentMonth}
+            onChange={(value) => setPaymentMonth(value)}
             placeholder="Oyni tanlang"
             required
-          />
+          >
+            {months.map((month) => (
+              <Option
+                key={month.key}
+                value={`${month.key}-${new Date().getFullYear()}`}
+              >
+                {month.name} {new Date().getFullYear()}
+              </Option>
+            ))}
+          </Select>
 
           <Select
             style={{ width: "100%" }}
