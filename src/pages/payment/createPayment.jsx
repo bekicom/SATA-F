@@ -40,6 +40,7 @@ const CreatePayment = () => {
   const [checkDebtStatus] = useCheckDebtStatusMutation();
   const { data: schoolData = {} } = useGetSchoolQuery();
   const [paymentType, setPaymentType] = useState("");
+  const [availableMonths, setAvailableMonths] = useState([]);
 
   const months = [
     { key: "01", name: "yanvar" },
@@ -57,8 +58,36 @@ const CreatePayment = () => {
   ];
 
   function getMonth(monthNumber) {
-    return months.find((m) => m.key === monthNumber).name;
+    return months.find((m) => m.key === monthNumber)?.name || "";
   }
+
+  // 🟢 O'quvchi tanlanganda, uning qabul qilingan oyidan boshlab oylarni filtrlash
+  useEffect(() => {
+    if (selectedStudent) {
+      const admissionDate = moment(selectedStudent.admissionDate);
+      const currentDate = moment();
+      const filteredMonths = [];
+
+      let tempDate = admissionDate.clone();
+
+      while (tempDate.isSameOrBefore(currentDate, "month")) {
+        const monthKey = tempDate.format("MM");
+        const year = tempDate.format("YYYY");
+        const monthName = getMonth(monthKey);
+
+        filteredMonths.push({
+          key: monthKey,
+          name: monthName,
+          year: year,
+          value: `${monthKey}-${year}`,
+        });
+
+        tempDate.add(1, "month");
+      }
+
+      setAvailableMonths(filteredMonths);
+    }
+  }, [selectedStudent]);
 
   useEffect(() => {
     if (selectedStudent && paymentMonth) {
@@ -69,6 +98,11 @@ const CreatePayment = () => {
             paymentMonth: paymentMonth,
           }).unwrap();
           setQarzdorlik(res);
+
+          // 🟢 Agar invalid_month true bo'lsa, xabar ko'rsatish
+          if (res.invalid_month) {
+            message.warning("Talaba bu oyda hali qabul qilinmagan");
+          }
         } catch (err) {
           console.error("Error fetching debt status:", err);
         }
@@ -93,9 +127,18 @@ const CreatePayment = () => {
   const handlePaymentClick = (student) => {
     setSelectedStudent(student);
     setIsModalVisible(true);
+    setPaymentMonth("");
+    setPaymentAmount("");
+    setPaymentType("");
+    setQarzdorlik({});
   };
 
   const handleOk = async () => {
+    if (!paymentAmount || !paymentMonth || !paymentType) {
+      message.error("Iltimos, barcha maydonlarni to'ldiring");
+      return;
+    }
+
     try {
       const obj = {
         user_id: selectedStudent._id,
@@ -104,12 +147,13 @@ const CreatePayment = () => {
         user_group: selectedStudent.groupId,
         payment_quantity: Number(paymentAmount),
         payment_month: paymentMonth,
-        payment_type: paymentType, // 🟩 endi "bankshot" ham ishlaydi
+        payment_type: paymentType,
       };
       setIsModalVisible(false);
       await createPayment(obj).unwrap();
       setPaymentAmount("");
       setPaymentType("");
+      setPaymentMonth("");
 
       message.success("To'lov muvaffaqiyatli amalga oshirildi");
       printReceipt(obj);
@@ -121,6 +165,10 @@ const CreatePayment = () => {
 
   const handleCancel = () => {
     setIsModalVisible(false);
+    setPaymentMonth("");
+    setPaymentAmount("");
+    setPaymentType("");
+    setQarzdorlik({});
   };
 
   const columns = [
@@ -181,7 +229,6 @@ const CreatePayment = () => {
     },
   ];
 
-  // format number
   const formatNumberWithSpaces = (value) => {
     return value.replace(/\D/g, "").replace(/\B(?=(\d{3})+(?!\d))/g, " ");
   };
@@ -275,16 +322,47 @@ const CreatePayment = () => {
         onCancel={handleCancel}
         okText="Saqlash"
         cancelText="Bekor qilish"
-        okButtonProps={{ disabled: qarzdorlik?.debt }}
+        okButtonProps={{
+          disabled: qarzdorlik?.debt || qarzdorlik?.invalid_month,
+        }}
       >
         <div>
-          {qarzdorlik?.debt ? (
-            <p style={{ color: "red" }}>
+          {selectedStudent && (
+            <p style={{ marginBottom: 16, color: "#1890ff" }}>
+              <strong>Qabul qilingan sana:</strong>{" "}
+              {moment(selectedStudent.admissionDate).format("DD-MM-YYYY")}
+            </p>
+          )}
+
+          {qarzdorlik?.debt && !qarzdorlik?.invalid_month ? (
+            <p style={{ color: "red", marginBottom: 16 }}>
               {qarzdorlik.debt_month?.slice(3, 7)}-yil{" "}
               {getMonth(qarzdorlik?.debt_month?.slice(0, 2))} oyi uchun{" "}
               {qarzdorlik?.debt_sum?.toLocaleString()} UZS qarzdorlik mavjud!
             </p>
           ) : null}
+
+          {qarzdorlik?.invalid_month ? (
+            <p style={{ color: "orange", marginBottom: 16 }}>
+              ⚠️ Bu oy uchun to'lov qila olmaysiz. Talaba bu oyda hali qabul
+              qilinmagan.
+            </p>
+          ) : null}
+
+          <Select
+            style={{ width: "100%", marginBottom: 16 }}
+            value={paymentMonth}
+            onChange={(value) => setPaymentMonth(value)}
+            placeholder="Oyni tanlang"
+            required
+            disabled={!selectedStudent}
+          >
+            {availableMonths.map((month) => (
+              <Option key={month.value} value={month.value}>
+                {month.name} {month.year}
+              </Option>
+            ))}
+          </Select>
 
           <Input
             value={formatNumberWithSpaces(paymentAmount)}
@@ -296,23 +374,6 @@ const CreatePayment = () => {
             style={{ marginBottom: 16 }}
             required
           />
-
-          <Select
-            style={{ width: "100%", marginBottom: 16 }}
-            value={paymentMonth}
-            onChange={(value) => setPaymentMonth(value)}
-            placeholder="Oyni tanlang"
-            required
-          >
-            {months.map((month) => (
-              <Option
-                key={month.key}
-                value={`${month.key}-${new Date().getFullYear()}`}
-              >
-                {month.name} {new Date().getFullYear()}
-              </Option>
-            ))}
-          </Select>
 
           <Select
             style={{ width: "100%" }}

@@ -1,7 +1,20 @@
 import React, { useEffect, useState } from "react";
 import "./payment.css";
-import { useCheckDebtStatusMutation, useCreatePaymentMutation, useGetUncompletedPaymentQuery } from "../../context/service/payment.service";
-import { Table, Modal, Button, Input, Select, message, Popover, DatePicker } from "antd";
+import {
+  useCheckDebtStatusMutation,
+  useCreatePaymentMutation,
+  useGetUncompletedPaymentQuery,
+} from "../../context/service/payment.service";
+import {
+  Table,
+  Modal,
+  Button,
+  Input,
+  Select,
+  message,
+  Popover,
+  DatePicker,
+} from "antd";
 import { FaList, FaPlus, FaDollarSign } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import { useGetClassQuery } from "../../context/service/class.service";
@@ -34,6 +47,7 @@ export const Debt = () => {
   const [checkDebtStatus] = useCheckDebtStatusMutation();
   const [qarzdorlik, setQarzdorlik] = useState({});
   const { data: schoolData = {} } = useGetSchoolQuery();
+  const [availableMonths, setAvailableMonths] = useState([]); // 🟢 yangi state
 
   const months = [
     { key: "01", name: "yanvar" },
@@ -49,9 +63,45 @@ export const Debt = () => {
     { key: "11", name: "noyabr" },
     { key: "12", name: "dekabr" },
   ];
+
   function getMonth(monthNumber) {
-    return months.find((m) => m.key === monthNumber).name;
+    return months.find((m) => m.key === monthNumber)?.name || "";
   }
+
+  // 🟢 O'quvchi tanlanganda, admissionDate'ga qarab oylarni filtrlash
+  useEffect(() => {
+    if (selectedStudent && selectedStudent.user_id) {
+      // studentData'dan to'liq ma'lumotni topish
+      const fullStudentData = studentData.find(
+        (s) => s._id === selectedStudent.user_id
+      );
+
+      if (fullStudentData && fullStudentData.admissionDate) {
+        const admissionDate = moment(fullStudentData.admissionDate);
+        const currentDate = moment();
+        const filteredMonths = [];
+
+        let tempDate = admissionDate.clone();
+
+        while (tempDate.isSameOrBefore(currentDate, "month")) {
+          const monthKey = tempDate.format("MM");
+          const year = tempDate.format("YYYY");
+          const monthName = getMonth(monthKey);
+
+          filteredMonths.push({
+            key: monthKey,
+            name: monthName,
+            year: year,
+            value: `${monthKey}-${year}`,
+          });
+
+          tempDate.add(1, "month");
+        }
+
+        setAvailableMonths(filteredMonths);
+      }
+    }
+  }, [selectedStudent, studentData]);
 
   useEffect(() => {
     if (selectedStudent && paymentMonth) {
@@ -62,6 +112,11 @@ export const Debt = () => {
             paymentMonth: paymentMonth,
           }).unwrap();
           setQarzdorlik(res);
+
+          // 🟢 Agar invalid_month true bo'lsa, xabar ko'rsatish
+          if (res.invalid_month) {
+            message.warning("Talaba bu oyda hali qabul qilinmagan");
+          }
         } catch (err) {
           console.error("Error fetching debt status:", err);
         }
@@ -70,6 +125,7 @@ export const Debt = () => {
       getDebtStatus();
     }
   }, [selectedStudent, paymentMonth]);
+
   useEffect(() => {
     const transformed = transformPaymentsData(data);
     setDebts(transformed);
@@ -122,14 +178,25 @@ export const Debt = () => {
   const handlePaymentClick = (student) => {
     setSelectedStudent(student);
     setPaymentModal(true);
+    // 🟢 Modalni ochganda eski ma'lumotlarni tozalash
+    setPaymentMonth("");
+    setPaymentAmount("");
+    setPaymentType("");
+    setQarzdorlik({});
   };
+
   const handleOk = async () => {
+    // 🟢 Validatsiya qo'shish
+    if (!paymentAmount || !paymentMonth || !paymentType) {
+      message.error("Iltimos, barcha maydonlarni to'ldiring");
+      return;
+    }
+
     try {
       const obj = {
         user_id: selectedStudent.user_id,
-        user_fullname:
-          selectedStudent.firstName + " " + selectedStudent.lastName,
-        user_group: selectedStudent.groupId,
+        user_fullname: selectedStudent.user_fullname,
+        user_group: selectedStudent.user_groupId,
         payment_quantity: Number(paymentAmount),
         payment_month: paymentMonth,
         payment_type: paymentType,
@@ -138,11 +205,13 @@ export const Debt = () => {
       await createPayment(obj).unwrap();
       setPaymentAmount("");
       setPaymentType("");
+      setPaymentMonth("");
 
+      message.success("To'lov muvaffaqiyatli amalga oshirildi");
       printReceipt(obj);
     } catch (err) {
       console.error("Xatolik:", err);
-      message?.error(err?.data?.message);
+      message?.error(err?.data?.message || "Xatolik yuz berdi");
     }
   };
 
@@ -151,6 +220,7 @@ export const Debt = () => {
     setPaymentAmount("");
     setPaymentMonth("");
     setPaymentType("");
+    setQarzdorlik({});
   };
 
   const columns = [
@@ -208,11 +278,11 @@ export const Debt = () => {
       ),
     },
   ];
+
   const formatNumberWithSpaces = (value) => {
-    return value
-      .replace(/\D/g, "") // Remove non-digit characters
-      .replace(/\B(?=(\d{3})+(?!\d))/g, " "); // Add spaces for thousands
+    return value.replace(/\D/g, "").replace(/\B(?=(\d{3})+(?!\d))/g, " ");
   };
+
   const showDebtsModal = (data) => {
     setModalData(data);
     setIsModalVisible(true);
@@ -222,12 +292,24 @@ export const Debt = () => {
     (acc, debt) => acc + (debt.debtSum || 0),
     0
   );
+
   const printReceipt = (paymentDetails) => {
     const printWindow = window.open("", "", "width=600,height=400");
 
+    const paymentTypeText =
+      paymentDetails.payment_type === "cash"
+        ? "Naqd to'lov"
+        : paymentDetails.payment_type === "card"
+        ? "Karta to'lov"
+        : "Bank orqali to'lov (BankShot)";
+
     printWindow.document.write(`
       <div style="padding-inline: 5mm; font-family:sans-serif;padding-block: 5mm; align-items:center; display: flex; flex-direction:column; gap:5mm; width:80mm">
-      ${schoolData?._id === "67ab141bdd6062f2e4cf4ce5" ? `<img style="max-width:50%; object-fit:cover" src="https://i.ibb.co/WWGNLxhq/buxred.jpg" alt="logo" id="logo" />` : ""}
+      ${
+        schoolData?._id === "67ab141bdd6062f2e4cf4ce5"
+          ? `<img style="max-width:50%; object-fit:cover" src="https://i.ibb.co/WWGNLxhq/buxred.jpg" alt="logo" id="logo" />`
+          : ""
+      }
       <b style="font-size: 1rem; text-align:center">
       To'lov qabul qilinganligi haqidagi kvitansiya
       </b>-------------------------------------------------------<div style="width:100%; display:flex; justify-content:space-between; align-items:center"><b>
@@ -242,7 +324,7 @@ export const Debt = () => {
       Sinf:
       </b>
       <span>
-      ${paymentDetails.user_group.name}
+      ${paymentDetails.user_group?.name || "N/A"}
       </span>
       </div>
       <div style="width:100%; display:flex; justify-content:space-between; align-items:center">
@@ -250,7 +332,7 @@ export const Debt = () => {
       To'lov miqdori:
       </b>
       <span>
-      ${paymentDetails.payment_quantity} UZS
+      ${paymentDetails.payment_quantity.toLocaleString()} UZS
       </span>
       </div>
       <div style="width:100%; display:flex; justify-content:space-between; align-items:center">
@@ -266,7 +348,7 @@ export const Debt = () => {
       To'lov turi:
       </b>
       <span>
-      ${paymentDetails.payment_type === "cash" ? "Naqd to'lov" : "Karta to'lov"}
+      ${paymentTypeText}
       </span>
       </div>
       <div style="width:100%; display:flex; justify-content:space-between; align-items:center">
@@ -295,26 +377,60 @@ export const Debt = () => {
   return (
     <div className="page">
       <Modal
-        title={`To'lov - ${
-          selectedStudent
-            ? selectedStudent.firstName + " " + selectedStudent.lastName
-            : ""
-        }`}
+        title={`To'lov - ${selectedStudent?.user_fullname || ""}`}
         visible={paymentModal}
         onOk={handleOk}
         onCancel={handleCancel}
         okText="Saqlash"
         cancelText="Bekor qilish"
-        okButtonProps={{ disabled: qarzdorlik?.debt }}
+        okButtonProps={{
+          disabled: qarzdorlik?.debt || qarzdorlik?.invalid_month,
+        }}
       >
         <div>
-          {qarzdorlik?.debt ? (
-            <p style={{ color: "red" }}>
+          {/* 🟢 Qabul qilingan sanani ko'rsatish */}
+          {selectedStudent && selectedStudent.user_id && (
+            <p style={{ marginBottom: 16, color: "#1890ff" }}>
+              <strong>Qabul qilingan sana:</strong>{" "}
+              {moment(
+                studentData.find((s) => s._id === selectedStudent.user_id)
+                  ?.admissionDate
+              ).format("DD-MM-YYYY")}
+            </p>
+          )}
+
+          {/* 🟢 Qarzdorlik xabari */}
+          {qarzdorlik?.debt && !qarzdorlik?.invalid_month ? (
+            <p style={{ color: "red", marginBottom: 16 }}>
               {qarzdorlik.debt_month?.slice(3, 7)}-yil{" "}
               {getMonth(qarzdorlik?.debt_month?.slice(0, 2))} oyi uchun{" "}
               {qarzdorlik?.debt_sum?.toLocaleString()} UZS qarzdorlik mavjud!
             </p>
           ) : null}
+
+          {/* 🟢 Invalid month xabari */}
+          {qarzdorlik?.invalid_month ? (
+            <p style={{ color: "orange", marginBottom: 16 }}>
+              ⚠️ Bu oy uchun to'lov qila olmaysiz. Talaba bu oyda hali qabul
+              qilinmagan.
+            </p>
+          ) : null}
+
+          {/* 🟢 Oy tanlash - faqat qabul qilingan oydan boshlab */}
+          <Select
+            style={{ width: "100%", marginBottom: 16 }}
+            value={paymentMonth}
+            onChange={(value) => setPaymentMonth(value)}
+            placeholder="Oyni tanlang"
+            required
+            disabled={!selectedStudent || !selectedStudent.user_id}
+          >
+            {availableMonths.map((month) => (
+              <Option key={month.value} value={month.value}>
+                {month.name} {month.year}
+              </Option>
+            ))}
+          </Select>
 
           <Input
             value={formatNumberWithSpaces(paymentAmount)}
@@ -328,23 +444,6 @@ export const Debt = () => {
           />
 
           <Select
-            style={{ width: "100%", marginBottom: 16 }}
-            value={paymentMonth}
-            onChange={(value) => setPaymentMonth(value)}
-            placeholder="Oyni tanlang"
-            required
-          >
-            {months.map((month) => (
-              <Option
-                key={month.key}
-                value={`${month.key}-${new Date().getFullYear()}`}
-              >
-                {month.name} {new Date().getFullYear()}
-              </Option>
-            ))}
-          </Select>
-
-          <Select
             style={{ width: "100%" }}
             value={paymentType}
             onChange={(value) => setPaymentType(value)}
@@ -353,9 +452,11 @@ export const Debt = () => {
           >
             <Option value="cash">Naqd to'lov</Option>
             <Option value="card">Karta to'lov</Option>
+            <Option value="bankshot">Xisob Raqam</Option>
           </Select>
         </div>
       </Modal>
+
       <Modal
         title="Qarzdor oylar"
         visible={isModalVisible}
@@ -427,8 +528,8 @@ export const Debt = () => {
       <Table
         columns={columns}
         dataSource={filteredDebts
-          .slice() // 🔥 array'ni kopiyasi olinadi (asosiy massiv buzilmaydi)
-          .reverse() // 🔥 teskari qilib beradi
+          .slice()
+          .reverse()
           .map((debt, index) => ({
             ...debt,
             key: debt.user_id || index,
