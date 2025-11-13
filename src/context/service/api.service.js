@@ -1,8 +1,8 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 
 const baseQuery = fetchBaseQuery({
-  baseUrl: "https://satalana.richman.uz/api",
-  // baseUrl: "http://localhost:8057/api",
+  // baseUrl: "https://satalana.richman.uz/api",
+  baseUrl: "http://localhost:8057/api",
 
   prepareHeaders: (headers, { getState }) => {
     const token = localStorage.getItem("access_token");
@@ -14,17 +14,14 @@ const baseQuery = fetchBaseQuery({
 
 export const baseQueryWithReauth = async (args, api, extraOptions) => {
   let result = await baseQuery(args, api, extraOptions);
-  if (result?.error && result?.error?.status === 401) {
-    localStorage.clear();
-    sessionStorage.clear();
-  }
+ 
   return result;
 };
 
 export const apiSlice = createApi({
   reducerPath: "api",
   baseQuery: baseQueryWithReauth,
-  tagTypes: ["update", "device", "Students", "Classes"],
+  tagTypes: ["update", "device", "Students", "Classes", "Payment", "School"],
   endpoints: (builder) => ({}),
 });
 // sasa
