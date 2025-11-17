@@ -41,6 +41,8 @@ const CreatePayment = () => {
   const { data: schoolData = {} } = useGetSchoolQuery();
   const [paymentType, setPaymentType] = useState("");
   const [availableMonths, setAvailableMonths] = useState([]);
+  const [disabledMonths, setDisabledMonths] = useState([]);
+  const [paidMonths, setPaidMonths] = useState([]);
 
   const months = [
     { key: "01", name: "yanvar" },
@@ -56,6 +58,55 @@ const CreatePayment = () => {
     { key: "11", name: "noyabr" },
     { key: "12", name: "dekabr" },
   ];
+
+
+
+const allMonthsList = Array.from({ length: 12 }, (_, i) => {
+  const key = moment().month(i).format("MM");
+  const name = moment().month(i).format("MMMM");
+  const year = moment().format("YYYY");
+
+  return {
+    key,
+    name,
+    year,
+    value: `${key}-${year}`,
+  };
+});
+
+
+useEffect(() => {
+  if (selectedStudent) {
+    const admission = moment(selectedStudent.admissionDate);
+
+    const disabled = allMonthsList
+      .filter((m) => {
+        const monthDate = moment(`${m.key}-${m.year}`, "MM-YYYY");
+        return monthDate.isBefore(admission, "month");
+      })
+      .map((m) => m.value);
+
+    setDisabledMonths(disabled);
+  }
+}, [selectedStudent]);
+
+
+useEffect(() => {
+  const fetchPaid = async () => {
+    if (!selectedStudent) return;
+    try {
+      const res = await checkDebtStatus({
+        studentId: selectedStudent._id,
+      }).unwrap();
+
+      setPaidMonths(res.paidMonths || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+  fetchPaid();
+}, [selectedStudent]);
+
 
   function getMonth(monthNumber) {
     return months.find((m) => m.key === monthNumber)?.name || "";
@@ -334,13 +385,12 @@ const CreatePayment = () => {
             </p>
           )}
 
-          {qarzdorlik?.debt && !qarzdorlik?.invalid_month ? (
+          {qarzdorlik?.debt && (
             <p style={{ color: "red", marginBottom: 16 }}>
-              {qarzdorlik.debt_month?.slice(3, 7)}-yil{" "}
-              {getMonth(qarzdorlik?.debt_month?.slice(0, 2))} oyi uchun{" "}
-              {qarzdorlik?.debt_sum?.toLocaleString()} UZS qarzdorlik mavjud!
+              {qarzdorlik.debt_month} uchun{" "}
+              {qarzdorlik.debt_sum.toLocaleString()} UZS qarzdorlik mavjud!
             </p>
-          ) : null}
+          )}
 
           {qarzdorlik?.invalid_month ? (
             <p style={{ color: "orange", marginBottom: 16 }}>
@@ -354,14 +404,20 @@ const CreatePayment = () => {
             value={paymentMonth}
             onChange={(value) => setPaymentMonth(value)}
             placeholder="Oyni tanlang"
-            required
-            disabled={!selectedStudent}
           >
-            {availableMonths.map((month) => (
-              <Option key={month.value} value={month.value}>
-                {month.name} {month.year}
-              </Option>
-            ))}
+            {allMonthsList.map((m) => {
+              const isDisabled =
+                disabledMonths.includes(m.value) ||
+                paidMonths.includes(m.value);
+
+              return (
+                <Option key={m.value} value={m.value} disabled={isDisabled}>
+                  {m.name} {m.year}
+                  {paidMonths.includes(m.value) && " (to‘langan)"}
+                  {disabledMonths.includes(m.value) && " (qabul qilinmagan)"}
+                </Option>
+              );
+            })}
           </Select>
 
           <Input
