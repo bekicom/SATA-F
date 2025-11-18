@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { Line, Bar } from "react-chartjs-2";
 import {
   Chart as ChartJS,
@@ -12,15 +12,8 @@ import {
   Filler,
 } from "chart.js";
 import { useGetSchoolQuery } from "../../context/service/admin.service";
-import {
-  useGetPaymentLogQuery,
-  useGetPaymentSummaryMonthQuery,
-  useGetPaymentSummaryQuery,
-} from "../../context/service/payment.service";
-import {
-  useGetHarajatSummaryQuery,
-  useGetHarajatQuery,
-} from "../../context/service/harajat.service";
+import { useGetPaymentLogQuery } from "../../context/service/payment.service";
+import { useGetHarajatQuery } from "../../context/service/harajat.service";
 import moment from "moment";
 import { DatePicker } from "antd";
 import "./home.css";
@@ -39,138 +32,187 @@ ChartJS.register(
 const Home = () => {
   const { data: schoolData = {} } = useGetSchoolQuery();
   const { data: payments = [] } = useGetPaymentLogQuery();
-  const { data: summaryData = [] } = useGetPaymentSummaryQuery();
-  const { data: harajatSummaryData = [] } = useGetHarajatSummaryQuery();
-  const { data: datasumma = [] } = useGetHarajatQuery();
+  const { data: harajatlar = [] } = useGetHarajatQuery();
 
   const [selectedDate, setSelectedDate] = useState(
     moment().format("YYYY-MM-DD")
   );
-  const selectedMonth = moment(selectedDate).format("MM-YYYY");
-  const { data: summaryMonthData = [] } = useGetPaymentSummaryMonthQuery({
-    month: selectedMonth,
-  });
 
-  const [summ, setSum] = useState([]);
-  const [harajatSumm, setHarajatSum] = useState([]);
-  const [dailyExpenseNaqd, setDailyExpenseNaqd] = useState(0);
-  const [dailyExpenseCard, setDailyExpenseCard] = useState(0);
-  const [dailyExpenseBankshot, setDailyExpenseBankshot] = useState(0);
-  const [dailyPaymentCash, setDailyPaymentCash] = useState(0);
-  const [dailyPaymentCard, setDailyPaymentCard] = useState(0);
+  // Statistikalar
+  const [dailyCashIncome, setDailyCashIncome] = useState(0);
+  const [dailyCardIncome, setDailyCardIncome] = useState(0);
+  const [dailyBankIncome, setDailyBankIncome] = useState(0);
+  const [dailyCashExpense, setDailyCashExpense] = useState(0);
+  const [dailyCardExpense, setDailyCardExpense] = useState(0);
+  const [dailyBankExpense, setDailyBankExpense] = useState(0);
+  const [monthlyIncome, setMonthlyIncome] = useState(0);
   const [monthlyExpense, setMonthlyExpense] = useState(0);
-  const [monthlyPayment, setMonthlyPayment] = useState(0);
   const [currentBudget, setCurrentBudget] = useState(0);
-  const [payment_quantity, setpayment_quantity] = useState(0);
-  console.log("========", payment_quantity);
 
-  useEffect(() => {
-    setSum(summaryData.map((item) => item.summ));
-    setHarajatSum(harajatSummaryData.map((item) => item.summ));
-  }, [summaryData, harajatSummaryData]);
+  const currentMonthStr = moment(selectedDate).format("MM-YYYY");
+  const todayStr = moment(selectedDate).format("YYYY-MM-DD");
 
-  useEffect(() => {
-    const currentDate = moment(selectedDate, "YYYY-MM-DD").format("YYYY-MM-DD");
+  // Barcha hisob-kitoblar useMemo orqali optimallashtirildi
+  const calculations = useMemo(() => {
+    let monthlyInc = 0;
+    let monthlyExp = 0;
 
-    // 🔹 Xarajatlarni ajratamiz
-    const dailyNaqd = datasumma
-      .filter(
-        (item) =>
-          moment(item.createdAt).format("YYYY-MM-DD") === currentDate &&
-          item.paymentType === "naqd"
-      )
-      .reduce((t, i) => t + i.summ, 0);
+    let dayCashInc = 0,
+      dayCardInc = 0,
+      dayBankInc = 0;
+    let dayCashExp = 0,
+      dayCardExp = 0,
+      dayBankExp = 0;
 
-    const dailyCard = datasumma
-      .filter(
-        (item) =>
-          moment(item.createdAt).format("YYYY-MM-DD") === currentDate &&
-          item.paymentType === "plastik"
-      )
-      .reduce((t, i) => t + i.summ, 0);
+    // 12 oylik ma'lumotlar (grafik uchun)
+    const monthlyIncomeByMonth = Array(12).fill(0);
+    const monthlyExpenseByMonth = Array(12).fill(0);
 
-    const dailyBankshot = datasumma
-      .filter(
-        (item) =>
-          moment(item.createdAt).format("YYYY-MM-DD") === currentDate &&
-          item.paymentType === "bankshot"
-      )
-      .reduce((t, i) => t + i.summ, 0);
+    // Oxirgi 30 kunlik kunlik ma'lumotlar
+    const dailyLabels = [];
+    const dailyIncomeData = [];
+    const dailyExpenseData = [];
 
-    setDailyExpenseNaqd(dailyNaqd);
-    setDailyExpenseCard(dailyCard);
-    setDailyExpenseBankshot(dailyBankshot);
+    // Har bir payment va harajatni aylantiramiz
+    [...payments, ...harajatlar].forEach((item) => {
+      const date = moment(item.createdAt);
+      const dateStr = date.format("YYYY-MM-DD");
+      const monthStr = date.format("MM-YYYY");
+      const monthIndex = date.month(); // 0-11
 
-    // 🔹 Kirimlarni ajratamiz
-    const cashPayments = payments
-      .filter(
-        (p) =>
-          moment(p.createdAt).format("YYYY-MM-DD") === currentDate &&
-          p.payment_type === "cash"
-      )
-      .reduce((acc, item) => acc + item.payment_quantity, 0);
+      // Agar payment bo'lsa
+      if (item.payment_quantity !== undefined) {
+        const amount = item.payment_quantity || 0;
 
-    const cardPayments = payments
-      .filter(
-        (p) =>
-          moment(p.createdAt).format("YYYY-MM-DD") === currentDate &&
-          p.payment_type === "card"
-      )
-      .reduce((acc, item) => acc + item.payment_quantity, 0);
+        // Oylik jami
+        if (monthStr === currentMonthStr) {
+          monthlyInc += amount;
+        }
 
-    const bankPayments = payments
-      .filter(
-        (p) =>
-          moment(p.createdAt).format("YYYY-MM-DD") === currentDate &&
-          p.payment_type === "bankshot"
-      )
-      .reduce((acc, item) => acc + item.payment_quantity, 0);
+        // Kunlik jami
+        if (dateStr === todayStr) {
+          if (item.payment_type === "cash") dayCashInc += amount;
+          if (item.payment_type === "card") dayCardInc += amount;
+          if (item.payment_type === "bankshot") dayBankInc += amount;
+        }
 
-    setDailyPaymentCash(cashPayments);
-    setDailyPaymentCard(cardPayments);
-    setpayment_quantity(bankPayments); // 🟩 endi bu bankshot summasi bo‘ladi
+        // Oylik grafik uchun
+        monthlyIncomeByMonth[monthIndex] += amount;
 
-    const currentMonthIndex = moment(selectedMonth, "MM-YYYY").month();
-    setMonthlyExpense(harajatSumm[currentMonthIndex] || 0);
-    setMonthlyPayment(summ[currentMonthIndex] || 0);
+        // Oxirgi 30 kun grafik
+        if (date.isSameOrAfter(moment().subtract(29, "days"))) {
+          const dayIndex = 29 - moment().diff(date, "days");
+          if (!dailyIncomeData[dayIndex]) {
+            dailyIncomeData[dayIndex] = 0;
+            dailyExpenseData[dayIndex] = 0;
+            dailyLabels[dayIndex] = date.format("DD MMM");
+          }
+          dailyIncomeData[dayIndex] += amount;
+        }
+      }
 
+      // Agar harajat bo'lsa
+      if (item.summ !== undefined) {
+        const amount = item.summ || 0;
+
+        if (monthStr === currentMonthStr) {
+          monthlyExp += amount;
+        }
+
+        if (dateStr === todayStr) {
+          if (item.paymentType === "naqd") dayCashExp += amount;
+          if (item.paymentType === "plastik") dayCardExp += amount;
+          if (item.paymentType === "bankshot") dayBankExp += amount;
+        }
+
+        monthlyExpenseByMonth[monthIndex] += amount;
+
+        if (date.isSameOrAfter(moment().subtract(29, "days"))) {
+          const dayIndex = 29 - moment().diff(date, "days");
+          if (!dailyExpenseData[dayIndex]) {
+            dailyExpenseData[dayIndex] = 0;
+            dailyIncomeData[dayIndex] = 0;
+            dailyLabels[dayIndex] = date.format("DD MMM");
+          }
+          dailyExpenseData[dayIndex] += amount;
+        }
+      }
+    });
+
+    // Label va data to'ldirish (agar bo'sh joy bo'lsa)
+    for (let i = 0; i < 30; i++) {
+      if (!dailyLabels[i]) {
+        const d = moment().subtract(29 - i, "days");
+        dailyLabels[i] = d.format("DD MMM");
+        dailyIncomeData[i] = dailyIncomeData[i] || 0;
+        dailyExpenseData[i] = dailyExpenseData[i] || 0;
+      }
+    }
+
+    // Byudjet hisobi
     const initialBudget =
-      schoolData.budgetHistory?.find((item) =>
-        moment(item.month, "MM-YYYY").isSame(selectedMonth, "month")
-      )?.budget || 0;
+      schoolData.budgetHistory?.find((b) => b.month === currentMonthStr)
+        ?.budget || 0;
 
-    setCurrentBudget(
-      initialBudget +
-        (summ[currentMonthIndex] || 0) -
-        (harajatSumm[currentMonthIndex] || 0)
-    );
+    const budget = initialBudget + monthlyInc - monthlyExp;
+
+    return {
+      monthlyIncome: monthlyInc,
+      monthlyExpense: monthlyExp,
+      currentBudget: budget,
+      dailyCashIncome: dayCashInc,
+      dailyCardIncome: dayCardInc,
+      dailyBankIncome: dayBankInc,
+      dailyCashExpense: dayCashExp,
+      dailyCardExpense: dayCardExp,
+      dailyBankExpense: dayBankExp,
+      monthlyIncomeByMonth,
+      monthlyExpenseByMonth,
+      dailyLabels,
+      dailyIncomeData,
+      dailyExpenseData,
+    };
   }, [
-    selectedMonth,
-    selectedDate,
-    summ,
-    harajatSumm,
     payments,
-    datasumma,
+    harajatlar,
+    selectedDate,
+    currentMonthStr,
+    todayStr,
     schoolData.budgetHistory,
   ]);
+
+  // State'larga yozamiz
+  useEffect(() => {
+    setMonthlyIncome(calculations.monthlyIncome);
+    setMonthlyExpense(calculations.monthlyExpense);
+    setCurrentBudget(calculations.currentBudget);
+
+    setDailyCashIncome(calculations.dailyCashIncome);
+    setDailyCardIncome(calculations.dailyCardIncome);
+    setDailyBankIncome(calculations.dailyBankIncome);
+
+    setDailyCashExpense(calculations.dailyCashExpense);
+    setDailyCardExpense(calculations.dailyCardExpense);
+    setDailyBankExpense(calculations.dailyBankExpense);
+  }, [calculations]);
 
   const handleDateChange = (date, dateString) => {
     setSelectedDate(dateString || moment().format("YYYY-MM-DD"));
   };
 
   const months = [
-    "Yanvar",
-    "Fevral",
-    "Mart",
-    "Aprel",
+    "Yan",
+    "Fev",
+    "Mar",
+    "Apr",
     "May",
     "Iyun",
     "Iyul",
-    "Avgust",
-    "Sentabr",
-    "Oktabr",
-    "Noyabr",
-    "Dekabr",
+    "Avg",
+    "Sen",
+    "Okt",
+    "Noy",
+    "Dek",
   ];
 
   const chartOptions = {
@@ -178,94 +220,58 @@ const Home = () => {
     maintainAspectRatio: false,
     plugins: {
       legend: {
-        display: true,
         position: "top",
-        labels: {
-          color: "#1f2937",
-          font: { size: 12, weight: "600" },
-          padding: 15,
-          usePointStyle: true,
-        },
+        labels: { font: { size: 13, weight: "600" } },
       },
       tooltip: {
-        backgroundColor: "rgba(0, 0, 0, 0.8)",
-        padding: 12,
-        titleColor: "#fff",
-        bodyColor: "#fff",
-        borderColor: "rgba(255, 255, 255, 0.2)",
-        borderWidth: 1,
-        displayColors: true,
+        backgroundColor: "rgba(0,0,0,0.8)",
         callbacks: {
-          label: function (context) {
-            return (
-              context.dataset.label +
-              ": " +
-              context.parsed.y.toLocaleString() +
-              " UZS"
-            );
-          },
+          label: (ctx) =>
+            `${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString()} UZS`,
         },
       },
     },
-    scales: {
-      y: {
-        beginAtZero: true,
-        grid: { color: "rgba(0, 0, 0, 0.05)" },
-        ticks: { color: "#6b7280", font: { size: 11 } },
-      },
-      x: {
-        grid: { display: false },
-        ticks: { color: "#6b7280", font: { size: 11 } },
-      },
-    },
+    scales: { y: { beginAtZero: true } },
   };
 
-  const combinedChartData = {
-    labels: months,
+  const dailyChartData = {
+    labels: calculations.dailyLabels,
     datasets: [
       {
-        label: "Kirim",
-        data: summ,
-        backgroundColor: "rgba(16, 185, 129, 0.2)",
-        borderColor: "rgba(16, 185, 129, 1)",
-        borderWidth: 3,
+        label: "Kunlik Kirim",
+        data: calculations.dailyIncomeData,
+        borderColor: "#10b981",
+        backgroundColor: "rgba(16,185,129,0.1)",
         fill: true,
         tension: 0.4,
-        pointRadius: 5,
-        pointHoverRadius: 7,
-        pointBackgroundColor: "rgba(16, 185, 129, 1)",
       },
       {
-        label: "Xarajat",
-        data: harajatSumm,
-        backgroundColor: "rgba(239, 68, 68, 0.2)",
-        borderColor: "rgba(239, 68, 68, 1)",
-        borderWidth: 3,
+        label: "Kunlik Xarajat",
+        data: calculations.dailyExpenseData,
+        borderColor: "#ef4444",
+        backgroundColor: "rgba(239,68,68,0.1)",
         fill: true,
         tension: 0.4,
-        pointRadius: 5,
-        pointHoverRadius: 7,
-        pointBackgroundColor: "rgba(239, 68, 68, 1)",
       },
     ],
   };
 
-  const barChartData = {
+  const yearlyChartData = {
     labels: months,
     datasets: [
       {
-        label: "Kirim",
-        data: summ,
-        backgroundColor: "rgba(16, 185, 129, 0.8)",
-        borderRadius: 8,
-        borderSkipped: false,
+        label: "Oylik Kirim",
+        data: calculations.monthlyIncomeByMonth,
+        borderColor: "#10b981",
+        backgroundColor: "rgba(16,185,129,0.2)",
+        fill: true,
       },
       {
-        label: "Xarajat",
-        data: harajatSumm,
-        backgroundColor: "rgba(239, 68, 68, 0.8)",
-        borderRadius: 8,
-        borderSkipped: false,
+        label: "Oylik Xarajat",
+        data: calculations.monthlyExpenseByMonth,
+        borderColor: "#ef4444",
+        backgroundColor: "rgba(239,68,68,0.2)",
+        fill: true,
       },
     ],
   };
@@ -273,129 +279,124 @@ const Home = () => {
   return (
     <div className="modern-dashboard">
       <div className="dashboard-header">
-        <div className="header-content">
-          <h1 className="dashboard-title"> Dashboard</h1>
-          <p className="dashboard-subtitle">
-            Moliyaviy ko'rsatkichlar va hisobotlar
-          </p>
+        <div>
+          <h1 className="dashboard-title">Dashboard</h1>
+          <p className="dashboard-subtitle">Moliyaviy ko'rsatkichlar</p>
         </div>
         <DatePicker
           onChange={handleDateChange}
+          value={moment(selectedDate)}
           format="YYYY-MM-DD"
-          picker="date"
-          placeholder="📅 Sana tanlang"
+          placeholder="Sana tanlang"
           className="modern-datepicker"
         />
       </div>
 
+      {/* Oylik statistika */}
       <div className="stats-grid">
         <div className="stat-card stat-income">
-          <div className="stat-icon">💰</div>
+          <div className="stat-icon"></div>
           <div className="stat-info">
             <p className="stat-label">Oylik Kirim</p>
-            <h3 className="stat-value">{monthlyPayment?.toLocaleString()}</h3>
+            <h3 className="stat-value">{monthlyIncome.toLocaleString()}</h3>
             <span className="stat-currency">UZS</span>
           </div>
         </div>
-
         <div className="stat-card stat-expense">
-          <div className="stat-icon">📉</div>
+          <div className="stat-icon"></div>
           <div className="stat-info">
             <p className="stat-label">Oylik Xarajat</p>
-            <h3 className="stat-value">{monthlyExpense?.toLocaleString()}</h3>
+            <h3 className="stat-value">{monthlyExpense.toLocaleString()}</h3>
             <span className="stat-currency">UZS</span>
           </div>
         </div>
         <div className="stat-card stat-budget">
-          <div className="stat-icon">💼</div>
+          <div className="stat-icon"></div>
           <div className="stat-info">
-            <p className="stat-label">Sof foyda</p>
-            <h3 className="stat-value">{currentBudget?.toLocaleString()}</h3>
+            <p className="stat-label">Joriy Byudjet</p>
+            <h3 className="stat-value">{currentBudget.toLocaleString()}</h3>
             <span className="stat-currency">UZS</span>
           </div>
         </div>
       </div>
 
+      {/* Kunlik kirim/xarajat */}
       <div className="daily-stats">
         <div className="daily-card daily-income">
-          <h4 className="daily-title">📥 Bugungi Kirim</h4>
+          <h4>Bugungi Kirim</h4>
           <div className="daily-items">
             <div className="daily-item">
-              <span className="item-icon">💵</span>
-              <div className="item-info">
-                <p className="item-label">Naqd</p>
-                <p className="item-value">
-                  {dailyPaymentCash?.toLocaleString()} UZS
-                </p>
-              </div>
+              Naqd:{" "}
+              <strong>{dailyCashIncome.toLocaleString()} UZS</strong>
             </div>
             <div className="daily-item">
-              <span className="item-icon">💳</span>
-              <div className="item-info">
-                <p className="item-label">Karta</p>
-                <p className="item-value">
-                  {dailyPaymentCard?.toLocaleString()} UZS
-                </p>
-              </div>
+               Karta:{" "}
+              <strong>{dailyCardIncome.toLocaleString()} UZS</strong>
             </div>
             <div className="daily-item">
-              <span className="item-icon">🏦</span>
-              <div className="item-info">
-                <p className="item-label">Hisob raqam</p>
-                <p className="item-value">
-                  {payment_quantity?.toLocaleString()} UZS
-                </p>
-              </div>
+              Bank:{" "}
+              <strong>{dailyBankIncome.toLocaleString()} UZS</strong>
             </div>
           </div>
         </div>
-
         <div className="daily-card daily-expense">
-          <h4 className="daily-title">📤 Bugungi Xarajat</h4>
+          <h4>Bugungi Xarajat</h4>
           <div className="daily-items">
             <div className="daily-item">
-              <span className="item-icon">💵</span>
-              <div className="item-info">
-                <p className="item-label">Naqd</p>
-                <p className="item-value">
-                  {dailyExpenseNaqd?.toLocaleString()} UZS
-                </p>
-              </div>
+               Naqd:{" "}
+              <strong>{dailyCashExpense.toLocaleString()} UZS</strong>
             </div>
             <div className="daily-item">
-              <span className="item-icon">💳</span>
-              <div className="item-info">
-                <p className="item-label">Karta</p>
-                <p className="item-value">
-                  {dailyExpenseCard?.toLocaleString()} UZS
-                </p>
-              </div>
+               Karta:{" "}
+              <strong>{dailyCardExpense.toLocaleString()} UZS</strong>
             </div>
             <div className="daily-item">
-              <span className="item-icon">🏦</span>
-              <div className="item-info">
-                <p className="item-label">Xisob Raqam</p>
-                <p className="item-value">
-                  {dailyExpenseBankshot?.toLocaleString()} UZS
-                </p>
-              </div>
+               Bank:{" "}
+              <strong>{dailyBankExpense.toLocaleString()} UZS</strong>
             </div>
           </div>
         </div>
       </div>
 
+      {/* Grafiklar */}
       <div className="charts-section">
         <div className="chart-container">
-          <h3 className="chart-title">📈 Yillik Moliyaviy Grafik</h3>
+          <h3>Oxirgi 30 kun (Kunlik)</h3>
           <div className="chart-wrapper">
-            <Line data={combinedChartData} options={chartOptions} />
+            <Line data={dailyChartData} options={chartOptions} />
           </div>
         </div>
 
         <div className="chart-container">
-          <h3 className="chart-title">📊 Bar Grafik</h3>
+          <h3>Yillik (Oylik)</h3>
           <div className="chart-wrapper">
-            <Bar data={barChartData} options={chartOptions} />
+            <Line data={yearlyChartData} options={chartOptions} />
+          </div>
+        </div>
+
+        <div className="chart-container">
+          <h3>Oylik Taqqoslash</h3>
+          <div className="chart-wrapper">
+            <Bar
+              data={{
+                labels: months,
+                datasets: [
+                  {
+                    label: "Kirim",
+                    data: calculations.monthlyIncomeByMonth,
+                    backgroundColor: "rgba(16,185,129,0.8)",
+                    borderRadius: 8,
+                  },
+                  {
+                    label: "Xarajat",
+                    data: calculations.monthlyExpenseByMonth,
+                    backgroundColor: "rgba(239,68,68,0.8)",
+                    borderRadius: 8,
+                  },
+                ],
+              }}
+              options={chartOptions}
+            />
           </div>
         </div>
       </div>
