@@ -18,16 +18,17 @@ const AddTeacher = () => {
 
   const schoolId = localStorage.getItem("school_id");
 
-  // 🔹 Form state
+  // Form states
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [birthDate, setBirthDate] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [science, setScience] = useState("");
   const [price, setPrice] = useState("");
-  const [employeeNo, setEmployeeNo] = useState(""); // Hikvision ID
+  const [employeeNo, setEmployeeNo] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
-  // 🔑 Login/Parol
+  // Login / Password
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
 
@@ -49,11 +50,11 @@ const AddTeacher = () => {
       if (teacher) {
         setFirstName(teacher?.firstName);
         setLastName(teacher?.lastName);
-        setLogin(teacher?.login || ""); // 🔑 login set
-        setPassword(""); // 🔑 parolni qayta ko‘rsatmaymiz
+        setLogin(teacher?.login || "");
+        setPassword(""); // EDIT rejimida parol bo‘sh turadi
 
         const formattedBirthDate = teacher.birthDate
-          ? new Date(teacher?.birthDate).toISOString().split("T")[0]
+          ? new Date(teacher.birthDate).toISOString().split("T")[0]
           : "";
         setBirthDate(formattedBirthDate);
 
@@ -86,8 +87,8 @@ const AddTeacher = () => {
       price: Number(price),
       schedule,
       schoolId,
-      login, // 🔑 qo‘shildi
-      ...(password && { password }), // 🔑 agar parol bo‘lsa yuboramiz
+      login,
+      ...(password && { password }), // EDIT rejimida faqat yangi parol yuboriladi
     };
 
     try {
@@ -123,107 +124,107 @@ const AddTeacher = () => {
       </div>
 
       <form autoComplete="off" className="form_body" onSubmit={handleSubmit}>
-        <label htmlFor="firstName">
+        <label>
           <p>Ismi</p>
           <input
             type="text"
-            id="firstName"
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
           />
         </label>
 
-        <label htmlFor="lastName">
+        <label>
           <p>Familiyasi</p>
           <input
             type="text"
-            id="lastName"
             value={lastName}
             onChange={(e) => setLastName(e.target.value)}
           />
         </label>
 
-        <label htmlFor="birthDate">
+        <label>
           <p>Tug'ilgan sana</p>
           <input
             type="date"
-            id="birthDate"
             value={birthDate}
             onChange={(e) => setBirthDate(e.target.value)}
           />
         </label>
 
-        <label htmlFor="phoneNumber">
+        <label>
           <p>Telefon raqam</p>
           <input
             type="text"
-            id="phoneNumber"
             value={phoneNumber}
             onChange={(e) => setPhoneNumber(e.target.value)}
           />
         </label>
 
-        <label htmlFor="science">
+        <label>
           <p>Fan</p>
           <input
             type="text"
-            id="science"
             value={science}
             onChange={(e) => setScience(e.target.value)}
           />
         </label>
 
-        <label htmlFor="employeeNo">
+        <label>
           <p>Employee No</p>
           <input
             type="text"
-            id="employeeNo"
             value={employeeNo}
             onChange={(e) => setEmployeeNo(e.target.value)}
           />
         </label>
 
-        <label htmlFor="price">
+        <label>
           <p>Maosh (bitta dars uchun)</p>
           <input
             type="number"
-            id="price"
             value={price}
             onChange={(e) => setPrice(e.target.value)}
           />
         </label>
 
-        {/* 🔑 Login & Parol */}
-        <label htmlFor="login">
+        {/* Login */}
+        <label>
           <p>Login</p>
           <input
             type="text"
-            id="login"
             value={login}
             onChange={(e) => setLogin(e.target.value)}
           />
         </label>
 
-        {!id && (
-          <label htmlFor="password">
-            <p>Parol</p>
+        {/* Parol - ADD va EDIT rejimida ham bor */}
+        <label>
+          <p>{id ? "Yangi parol (ixtiyoriy)" : "Parol"}</p>
+          <div className="password-wrapper">
             <input
-              type="password"
-              id="password"
+              type={showPassword ? "text" : "password"}
               value={password}
+              placeholder={
+                id ? "Agar parolni yangilamoqchi bo‘lsangiz kiriting" : ""
+              }
               onChange={(e) => setPassword(e.target.value)}
             />
-          </label>
-        )}
+            <span
+              className="eye-icon"
+              onClick={() => setShowPassword(!showPassword)}
+            >
+              {showPassword ? "👁️‍🗨️" : "👁️"}
+            </span>
+          </div>
+        </label>
 
         {Object.keys(schedule)
           .filter((day) => day !== "_id")
           .map((day) => (
-            <label key={day} htmlFor={day}>
+            <label key={day}>
               <p>{day}</p>
               <input
                 type="number"
-                id={day}
                 min={0}
                 max={24}
                 value={schedule[day] || ""}
@@ -235,6 +236,7 @@ const AddTeacher = () => {
         <button type="submit" disabled={isLoading}>
           {isLoading ? "Yuklanmoqda..." : id ? "Yangilash" : "Qo'shish"}
         </button>
+
         {isError && <p className="error">Xatolik: {error?.data?.message}</p>}
       </form>
     </div>

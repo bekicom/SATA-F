@@ -105,14 +105,7 @@ const Teacher = () => {
               style={{ marginRight: 8 }}
             />
           </Popover>
-          <Popover placement="bottom" content={"QR kod"}>
-            <Button
-              type="default"
-              icon={<MdQrCode />}
-              onClick={() => handleShowQRCode(record)}
-              style={{ marginRight: 8 }}
-            />
-          </Popover>
+         
           <Popover placement="bottom" content={"O'chirish"}>
             <Button
               type="primary"
@@ -168,32 +161,7 @@ const Teacher = () => {
         onChange={handleTableChange}
         loading={fetchLoading}
       />
-      <Modal
-        title="QR kod"
-        visible={qrModalVisible}
-        onCancel={() => setQrModalVisible(false)}
-        footer={[
-          <Button
-            key="close"
-            type="primary"
-            onClick={() => setQrModalVisible(false)}
-          >
-            Yopish
-          </Button>,
-          <Button key="print" type="default" onClick={handlePrint}>
-            Print
-          </Button>,
-        ]}
-      >
-        <div className="qr-code-container">
-          <QRCodeCanvas value={selectedTeacherId} size={160} />
-          <div style={{ marginTop: 16, textAlign: "center" }}>
-            <p>
-              {selectedTeacher.firstName} {selectedTeacher.lastName}
-            </p>
-          </div>
-        </div>
-      </Modal>
+      
     </div>
   );
 };

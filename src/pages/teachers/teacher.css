@@ -26,3 +26,64 @@
   height: 100%;
   flex-direction: column;
 }
+
+
+.password-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.password-wrapper input {
+  width: 100%;
+  height: 40px;          /* boshqa inputlar balandligiga mos */
+  padding: 0 40px 0 10px;
+  font-size: 16px;
+  border: 1px solid #ccc;
+  border-radius: 6px;    /* aynan formadagi input radiusiga mos */
+  outline: none;
+  box-sizing: border-box;
+}
+
+/* Ichidagi ko'zcha ikon */
+.eye-icon {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  font-size: 18px;
+  color: #666;
+}
+
+.eye-icon:hover {
+  color: #000;
+}
+
+.password-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.password-wrapper input {
+  width: 100%;
+  height: 40px;
+  padding: 0 40px 0 10px;
+  font-size: 16px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.eye-icon {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  font-size: 18px;
+  color: #666;
+}
+.eye-icon:hover {
+  color: #000;
+}
