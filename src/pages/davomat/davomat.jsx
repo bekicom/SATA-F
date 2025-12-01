@@ -26,7 +26,6 @@ import {
 } from "antd";
 import { useNavigate } from "react-router-dom";
 import {
-  FaList,
   FaCalendarAlt,
   FaCheckCircle,
   FaTimesCircle,
@@ -37,8 +36,6 @@ import {
 import { IoTimeOutline, IoExitOutline, IoStatsChart } from "react-icons/io5";
 import { MdLogin, MdLogout } from "react-icons/md";
 import moment from "moment";
-
-// ✅ Custom oq rangli table import
 import { Table } from "../../components/table/table";
 
 const { Title, Text } = Typography;
@@ -51,16 +48,13 @@ const Davomat = () => {
   const [monthlyData, setMonthlyData] = useState([]);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
-  const [selectedMonth, setSelectedMonth] = useState(
-    moment().format("MM-YYYY")
-  );
 
-  // Qo'lda davomat olish uchun state'lar
+  // qo'lda davomat modal
   const [attendanceModal, setAttendanceModal] = useState(false);
   const [currentStudent, setCurrentStudent] = useState(null);
   const [arrivalTime, setArrivalTime] = useState(null);
   const [leaveTime, setLeaveTime] = useState(null);
-  const [attendanceType, setAttendanceType] = useState(""); // "arrive" yoki "leave"
+  const [attendanceType, setAttendanceType] = useState("");
 
   const navigate = useNavigate();
   const { data: classData = [] } = useGetClassQuery();
@@ -68,7 +62,7 @@ const Davomat = () => {
   const { data: studentData = [] } = useGetCoinQuery();
   const [addDavomatByScan, { isLoading }] = useAddDavomatByScanMutation();
 
-  // 🔎 Sinf bo'yicha filterlash
+  // sinf bo‘yicha filter
   useEffect(() => {
     if (selectedClass) {
       setFilteredStudents(
@@ -83,26 +77,31 @@ const Davomat = () => {
     setSelectedDate(dateString || today);
   };
 
-  // 🔎 Bitta student uchun shu sanadagi yozuvni topish
+  // bitta student uchun shu kunga tegishli yozuv
   const getStudentEntry = (studentId) => {
-    const entry = davomatData?.find(
+    const entryForDay = davomatData?.find(
       (item) =>
         moment(item.date).format("YYYY-MM-DD") ===
         moment(selectedDate).format("YYYY-MM-DD")
     );
-    if (!entry || !Array.isArray(entry.body)) return null;
+    if (!entryForDay || !Array.isArray(entryForDay.body)) return null;
 
-    return entry.body.find(
+    return entryForDay.body.find(
       (s) => String(s.student_id?._id || s.student_id) === String(studentId)
     );
   };
 
+  // asosiy jadval uchun status matnini qaytarish
   const getStatus = (studentId) => {
     const entry = getStudentEntry(studentId);
-    if (!entry) return "Kelmadi";
+
+    if (!entry) return "Belgilanmagan";
+
     if (entry.status === "keldi") return "Keldi";
     if (entry.status === "ketdi") return "Ketdi";
-    return "Kelmadi";
+    if (entry.status === "kelmadi") return "Kelmadi";
+
+    return "Belgilanmagan";
   };
 
   const getArrivedTime = (studentId) => {
@@ -115,19 +114,17 @@ const Davomat = () => {
     return entry?.quittedTime || "-";
   };
 
-  // Qo'lda davomat belgilash funksiyasi
-  const handleMarkAttendance = async (student, type) => {
+  // qo'lda Keldi / Ketdi belgilash
+  const handleMarkAttendance = (student, type) => {
     setCurrentStudent(student);
     setAttendanceType(type);
 
-    // Joriy vaqtni default qilib qo'yish
     const currentTime = moment();
     if (type === "arrive") {
       setArrivalTime(currentTime);
       setLeaveTime(null);
     } else {
       setLeaveTime(currentTime);
-      // Kelgan vaqtni oldin belgilangan vaqtdan olish
       const existingEntry = getStudentEntry(student._id);
       if (existingEntry && existingEntry.time) {
         setArrivalTime(moment(existingEntry.time, "HH:mm"));
@@ -137,7 +134,7 @@ const Davomat = () => {
     setAttendanceModal(true);
   };
 
-  // Davomatni saqlash - API formatiga moslashtirish
+  // qo'lda Keldi/Ketdi saqlash
   const saveAttendance = async () => {
     if (!currentStudent || !arrivalTime) {
       message.error("Student va kelish vaqti majburiy!");
@@ -145,9 +142,8 @@ const Davomat = () => {
     }
 
     try {
-      // API formatiga mos ma'lumot tayyorlash - employeeNo ni qo'shamiz
       const attendanceData = {
-        employeeNo: currentStudent.employeeNo, // employeeNo ni yuborish
+        employeeNo: currentStudent.employeeNo,
         date: moment(selectedDate).format("YYYY-MM-DD"),
         status: "keldi",
         time: arrivalTime.format("HH:mm"),
@@ -164,8 +160,6 @@ const Davomat = () => {
       setArrivalTime(null);
       setLeaveTime(null);
       setAttendanceType("");
-
-      // Ma'lumotlarni yangilash
       refetch();
     } catch (error) {
       console.error("Davomat belgilashda xatolik:", error);
@@ -173,16 +167,18 @@ const Davomat = () => {
     }
   };
 
-  // Kelmagan deb belgilash
+  // Kelmadi bosilganda – backendga status: "kelmadi"
   const markAsAbsent = async (student) => {
     try {
       const attendanceData = {
-        employeeNo: student.employeeNo, // employeeNo ni yuborish
+        employeeNo: student.employeeNo,
         date: moment(selectedDate).format("YYYY-MM-DD"),
         status: "kelmadi",
       };
 
-      await addDavomatByScan(attendanceData).unwrap();
+      const res = await addDavomatByScan(attendanceData).unwrap();
+      console.log("Kelmadi javobi:", res);
+
       message.success(
         `${student.firstName} ${student.lastName} kelmagan deb belgilandi`
       );
@@ -193,73 +189,74 @@ const Davomat = () => {
     }
   };
 
-  // 🔎 Oylik hisobot - yangi optimal versiya
-const getMonthlyStatus = (student_id, month) => {
-  const [monthPart, yearPart] = month.split("-").map(Number);
-  const daysInMonth = new Date(yearPart, monthPart, 0).getDate();
+  // Oylik hisobot – endi 3 ta holat: keldi / kelmadi / belgilanmagan
+  const getMonthlyStatus = (student_id, month) => {
+    const [monthPart, yearPart] = month.split("-").map(Number);
+    const daysInMonth = new Date(yearPart, monthPart, 0).getDate();
 
-  const result = [];
+    const result = [];
 
-  for (let day = 1; day <= daysInMonth; day++) {
-    const currentDate = moment(`${yearPart}-${monthPart}-${day}`, "YYYY-MM-DD");
+    for (let day = 1; day <= daysInMonth; day++) {
+      const currentDate = moment(
+        `${yearPart}-${monthPart}-${day}`,
+        "YYYY-MM-DD"
+      );
 
-    const entry = davomatData.find(
-      (d) =>
-        moment(d.date).format("YYYY-MM-DD") === currentDate.format("YYYY-MM-DD")
-    );
+      const entryForDay = davomatData.find(
+        (d) =>
+          moment(d.date).format("YYYY-MM-DD") ===
+          currentDate.format("YYYY-MM-DD")
+      );
 
-    let status = "kelmadi";
-    let time = "-";
-    let quittedTime = "-";
+      let status = "none"; // yozuv yo‘q – belgilanmagan
+      let time = "-";
+      let quittedTime = "-";
 
-    if (entry && Array.isArray(entry.body)) {
-      entry.body.forEach((item) => {
-        if (
-          String(item.student_id?._id || item.student_id) === String(student_id)
-        ) {
-          if (item.status === true || item.status === "keldi") {
-            status = "keldi";
+      if (entryForDay && Array.isArray(entryForDay.body)) {
+        entryForDay.body.forEach((item) => {
+          if (
+            String(item.student_id?._id || item.student_id) ===
+            String(student_id)
+          ) {
+            if (item.status === "keldi") status = "keldi";
+            else if (item.status === "kelmadi") status = "kelmadi";
+
+            time = item.time || time;
+            quittedTime = item.quittedTime || quittedTime;
           }
-          time = item.time || time;
-          quittedTime = item.quittedTime || quittedTime;
-        }
+        });
+      }
+
+      const uzbekDays = {
+        Sunday: "Yakshanba",
+        Monday: "Dushanba",
+        Tuesday: "Seshanba",
+        Wednesday: "Chorshanba",
+        Thursday: "Payshanba",
+        Friday: "Juma",
+        Saturday: "Shanba",
+      };
+
+      result.push({
+        key: currentDate.format("DD-MM-YYYY"),
+        date: currentDate.format("DD-MM-YYYY"),
+        day: uzbekDays[currentDate.format("dddd")],
+        status,
+        time,
+        quittedTime,
+        isWeekend: currentDate.day() === 0,
       });
     }
 
-    const uzbekDays = {
-      Sunday: "Yakshanba",
-      Monday: "Dushanba",
-      Tuesday: "Seshanba",
-      Wednesday: "Chorshanba",
-      Thursday: "Payshanba",
-      Friday: "Juma",
-      Saturday: "Shanba",
-    };
+    setMonthlyData(result);
+  };
 
-    result.push({
-      key: currentDate.format("DD-MM-YYYY"),
-      date: currentDate.format("DD-MM-YYYY"),
-      day: uzbekDays[currentDate.format("dddd")],
-      dayNumber: day,
-      status,
-      time,
-      quittedTime,
-      // ✅ Faqat Yakshanba dam kuni
-      isWeekend: currentDate.day() === 0,
-    });
-  }
-
-  setMonthlyData(result);
-};
-
-
-  // Statistikalarni hisoblash
+  // statistikalar – keldi va kelmadi alohida
   const getStatistics = () => {
-    const totalDays = monthlyData.filter((d) => !d.isWeekend).length;
-    const presentDays = monthlyData.filter(
-      (d) => d.status === "keldi" && !d.isWeekend
-    ).length;
-    const absentDays = totalDays - presentDays;
+    const workingDays = monthlyData.filter((d) => !d.isWeekend);
+    const totalDays = workingDays.length;
+    const presentDays = workingDays.filter((d) => d.status === "keldi").length;
+    const absentDays = workingDays.filter((d) => d.status === "kelmadi").length;
     const attendanceRate =
       totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0;
 
@@ -270,7 +267,7 @@ const getMonthlyStatus = (student_id, month) => {
 
   return (
     <div className="page">
-      {/* 🆕 Qo'lda davomat modal */}
+      {/* Qo‘lda davomat modal */}
       <Modal
         title={
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -319,7 +316,8 @@ const getMonthlyStatus = (student_id, month) => {
                 {currentStudent.firstName} {currentStudent.lastName}
               </Title>
               <Text type="secondary">
-                {currentStudent.groupId?.name} - ID: {currentStudent.employeeNo} - Sana: {selectedDate}
+                {currentStudent.groupId?.name} - ID: {currentStudent.employeeNo}{" "}
+                - Sana: {selectedDate}
               </Text>
             </div>
 
@@ -367,7 +365,7 @@ const getMonthlyStatus = (student_id, month) => {
         )}
       </Modal>
 
-      {/* 📊 Zamonaviy Oylik Hisobot Modal */}
+      {/* Oylik hisobot modal */}
       <Modal
         open={isModalVisible}
         title={null}
@@ -377,7 +375,6 @@ const getMonthlyStatus = (student_id, month) => {
         bodyStyle={{ padding: 0 }}
         style={{ top: 20 }}
       >
-        {/* Modal Header */}
         <div
           style={{
             background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
@@ -400,15 +397,14 @@ const getMonthlyStatus = (student_id, month) => {
                 style={{ color: "rgba(255,255,255,0.8)", fontSize: "16px" }}
               >
                 <FaCalendarAlt style={{ marginRight: "8px" }} />
-                {selectedStudent?.groupId?.name} guruhi - ID: {selectedStudent?.employeeNo}
+                {selectedStudent?.groupId?.name} guruhi - ID:{" "}
+                {selectedStudent?.employeeNo}
               </Text>
             </div>
           </div>
         </div>
 
-        {/* Modal Body */}
         <div style={{ padding: "24px" }}>
-          {/* Oy tanlash va statistika */}
           <Row gutter={[16, 16]} style={{ marginBottom: "24px" }}>
             <Col span={8}>
               <Card size="small">
@@ -417,9 +413,8 @@ const getMonthlyStatus = (student_id, month) => {
                   format="MMMM YYYY"
                   style={{ width: "100%" }}
                   placeholder="Oyni tanlang"
-                  onChange={(date, dateString) => {
+                  onChange={(date) => {
                     const formattedMonth = moment(date).format("MM-YYYY");
-                    setSelectedMonth(formattedMonth);
                     getMonthlyStatus(selectedStudent._id, formattedMonth);
                   }}
                   defaultValue={moment()}
@@ -464,10 +459,7 @@ const getMonthlyStatus = (student_id, month) => {
                         type="circle"
                         size={60}
                         percent={stats.attendanceRate}
-                        strokeColor={{
-                          "0%": "#108ee9",
-                          "100%": "#87d068",
-                        }}
+                        strokeColor={{ "0%": "#108ee9", "100%": "#87d068" }}
                       />
                       <div
                         style={{
@@ -487,7 +479,6 @@ const getMonthlyStatus = (student_id, month) => {
 
           <Divider />
 
-          {/* Kalendar ko'rinishida jadval */}
           <Title level={4} style={{ marginBottom: "16px" }}>
             <IoStatsChart style={{ marginRight: "8px", color: "#1890ff" }} />
             Oylik Davomat Kalendari
@@ -517,56 +508,21 @@ const getMonthlyStatus = (student_id, month) => {
                 }}
               >
                 <tr>
-                  <th
-                    style={{
-                      padding: "12px 8px",
-                      borderBottom: "2px solid #e8e8e8",
-                      fontWeight: 600,
-                      textAlign: "left",
-                    }}
-                  >
+                  <th style={{ padding: "12px 8px", textAlign: "left" }}>
                     Sana
                   </th>
-                  <th
-                    style={{
-                      padding: "12px 8px",
-                      borderBottom: "2px solid #e8e8e8",
-                      fontWeight: 600,
-                      textAlign: "center",
-                    }}
-                  >
+                  <th style={{ padding: "12px 8px", textAlign: "center" }}>
                     Kun
                   </th>
-                  <th
-                                  style={{
-                      padding: "12px 8px",
-                      borderBottom: "2px solid #e8e8e8",
-                      fontWeight: 600,
-                      textAlign: "center",
-                    }}
-                  >
+                  <th style={{ padding: "12px 8px", textAlign: "center" }}>
                     <IoTimeOutline style={{ marginRight: "4px" }} />
                     Kelish
                   </th>
-                  <th
-                    style={{
-                      padding: "12px 8px",
-                      borderBottom: "2px solid #e8e8e8",
-                      fontWeight: 600,
-                      textAlign: "center",
-                    }}
-                  >
+                  <th style={{ padding: "12px 8px", textAlign: "center" }}>
                     <IoExitOutline style={{ marginRight: "4px" }} />
                     Ketish
                   </th>
-                  <th
-                    style={{
-                      padding: "12px 8px",
-                      borderBottom: "2px solid #e8e8e8",
-                      fontWeight: 600,
-                      textAlign: "center",
-                    }}
-                  >
+                  <th style={{ padding: "12px 8px", textAlign: "center" }}>
                     Holat
                   </th>
                 </tr>
@@ -580,19 +536,11 @@ const getMonthlyStatus = (student_id, month) => {
                       opacity: item.isWeekend ? 0.6 : 1,
                       transition: "all 0.2s ease",
                     }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = "#e6f7ff";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor =
-                        index % 2 === 0 ? "#fafafa" : "white";
-                    }}
                   >
                     <td
                       style={{
                         padding: "12px 8px",
                         borderBottom: "1px solid #f0f0f0",
-                        fontWeight: item.isWeekend ? "normal" : "500",
                       }}
                     >
                       {item.date}
@@ -602,7 +550,6 @@ const getMonthlyStatus = (student_id, month) => {
                         padding: "12px 8px",
                         borderBottom: "1px solid #f0f0f0",
                         textAlign: "center",
-                        color: item.isWeekend ? "#999" : "#333",
                       }}
                     >
                       {item.isWeekend ? (
@@ -665,10 +612,14 @@ const getMonthlyStatus = (student_id, month) => {
                           <FaCheckCircle style={{ marginRight: "4px" }} />
                           Kelgan
                         </Tag>
-                      ) : (
+                      ) : item.status === "kelmadi" ? (
                         <Tag color="error" size="small">
                           <FaTimesCircle style={{ marginRight: "4px" }} />
                           Kelmagan
+                        </Tag>
+                      ) : (
+                        <Tag color="default" size="small">
+                          Belgilangan emas
                         </Tag>
                       )}
                     </td>
@@ -678,7 +629,6 @@ const getMonthlyStatus = (student_id, month) => {
             </table>
           </div>
 
-          {/* Footer statistika */}
           <div
             style={{
               marginTop: "20px",
@@ -720,7 +670,7 @@ const getMonthlyStatus = (student_id, month) => {
         </div>
       </Modal>
 
-      {/* 📌 Header */}
+      {/* Header */}
       <div className="page-header">
         <h1>O'quvchilar davomati</h1>
         <div className="log-header" style={{ display: "flex", gap: "8px" }}>
@@ -747,7 +697,7 @@ const getMonthlyStatus = (student_id, month) => {
         </div>
       </div>
 
-      {/* 📋 Oq rangli jadval */}
+      {/* Asosiy jadval */}
       <Table>
         <thead>
           <tr>
@@ -769,6 +719,20 @@ const getMonthlyStatus = (student_id, month) => {
             const arrivedTime = getArrivedTime(student._id);
             const quittedTime = getQuittedTime(student._id);
 
+            let tagColor = "default";
+            if (status === "Keldi") tagColor = "success";
+            else if (status === "Ketdi") tagColor = "processing";
+            else if (status === "Kelmadi") tagColor = "error";
+
+            const tagIcon =
+              status === "Keldi" ? (
+                <FaCheckCircle />
+              ) : status === "Ketdi" ? (
+                <FaClock />
+              ) : status === "Kelmadi" ? (
+                <FaTimesCircle />
+              ) : null;
+
             return (
               <tr key={student._id}>
                 <td>{index + 1}</td>
@@ -781,30 +745,12 @@ const getMonthlyStatus = (student_id, month) => {
                 <td>{arrivedTime}</td>
                 <td>{quittedTime}</td>
                 <td>
-                  <Tag
-                    color={
-                      status === "Keldi"
-                        ? "success"
-                        : status === "Ketdi"
-                        ? "processing"
-                        : "error"
-                    }
-                    icon={
-                      status === "Keldi" ? (
-                        <FaCheckCircle />
-                      ) : status === "Ketdi" ? (
-                        <FaClock />
-                      ) : (
-                        <FaTimesCircle />
-                      )
-                    }
-                  >
+                  <Tag color={tagColor} icon={tagIcon}>
                     {status}
                   </Tag>
                 </td>
                 <td>
                   <Space size="small">
-                    {/* Darsga kelish tugmasi */}
                     <Button
                       type="primary"
                       size="small"
@@ -815,12 +761,11 @@ const getMonthlyStatus = (student_id, month) => {
                         borderColor: "#52c41a",
                         fontSize: "12px",
                       }}
-                      disabled={arrivedTime !== "-"}
+                      disabled={arrivedTime !== "-" || status === "Kelmadi"}
                     >
                       Keldi
                     </Button>
 
-                    {/* Darsdan ketish tugmasi */}
                     <Button
                       type="primary"
                       size="small"
@@ -831,12 +776,15 @@ const getMonthlyStatus = (student_id, month) => {
                         borderColor: "#ff7a00",
                         fontSize: "12px",
                       }}
-                      disabled={arrivedTime === "-" || quittedTime !== "-"}
+                      disabled={
+                        arrivedTime === "-" ||
+                        quittedTime !== "-" ||
+                        status === "Kelmadi"
+                      }
                     >
                       Ketdi
                     </Button>
 
-                    {/* Kelmadi tugmasi */}
                     <Popconfirm
                       title="O'quvchini kelmagan deb belgilaysizmi?"
                       onConfirm={() => markAsAbsent(student)}
@@ -848,7 +796,7 @@ const getMonthlyStatus = (student_id, month) => {
                         size="small"
                         icon={<FaTimesCircle />}
                         style={{ fontSize: "12px" }}
-                        disabled={arrivedTime !== "-"}
+                        disabled={status === "Kelmadi" || arrivedTime !== "-"}
                       >
                         Kelmadi
                       </Button>
@@ -863,7 +811,6 @@ const getMonthlyStatus = (student_id, month) => {
                     onClick={() => {
                       setSelectedStudent(student);
                       const currentMonth = moment().format("MM-YYYY");
-                      setSelectedMonth(currentMonth);
                       getMonthlyStatus(student._id, currentMonth);
                       setIsModalVisible(true);
                     }}
@@ -873,7 +820,6 @@ const getMonthlyStatus = (student_id, month) => {
                       background:
                         "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
                       border: "none",
-                      padding: "0 !important",
                     }}
                   >
                     Hisobot
@@ -884,7 +830,7 @@ const getMonthlyStatus = (student_id, month) => {
           })}
         </tbody>
       </Table>
-    </div>  
+    </div>
   );
 };
 

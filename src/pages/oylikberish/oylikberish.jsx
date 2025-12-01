@@ -1,14 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import {
-  Table,
-  Button,
-  message,
-  Input,
-  Modal,
-  DatePicker,
-  Space,
-  Tag,
-} from "antd";
+import { Table, Button, message, Input, Modal, Space, Tag } from "antd";
 import {
   useGetSalaryQuery,
   useGetTeachersQuery,
@@ -70,7 +61,7 @@ const Oylikberish = () => {
     return false;
   };
 
-  // Salary-reportdan bitta o‘qituvchi + oy bo‘yicha hujjatni topish
+  // Salary-reportdan bitta o'qituvchi + oy bo'yicha hujjatni topish
   const findSalaryDoc = (teacherId, monthYYYYMM) =>
     salaryReport.find(
       (r) =>
@@ -92,7 +83,7 @@ const Oylikberish = () => {
     return { earned, paid };
   };
 
-  // Qo‘shimcha darslar (exchange_classes) summasi
+  // Qo'shimcha darslar (exchange_classes) summasi
   const getExtraCharge = (teacher, monthYYYYMM) => {
     if (!teacher || !Array.isArray(teacher.exchange_classes)) return 0;
     return teacher.exchange_classes.reduce((total, ex) => {
@@ -103,7 +94,7 @@ const Oylikberish = () => {
     }, 0);
   };
 
-  // Ko‘rinadigan qiymatlarni chiqarish (har bir o‘qituvchi, joriy oy)
+  // Ko'rinadigan qiymatlarni chiqarish (har bir o'qituvchi, joriy oy)
   const currentMonth = useMemo(() => moment().format("YYYY-MM"), []);
   const withComputed = useMemo(() => {
     return filteredTeachers.map((t) => {
@@ -123,15 +114,14 @@ const Oylikberish = () => {
     });
   }, [filteredTeachers, salaryReport, currentMonth]);
 
-  
-  // To‘lov modalini ochish
+  // To'lov modalini ochish
   const handleOpenModal = (teacher) => {
     setSelectedTeacher(teacher);
     setPaymentMonth(currentMonth); // default hozirgi oy
     setIsModalVisible(true);
   };
 
-  // To‘lov qilish
+  // To'lov qilish
   const handlePay = async () => {
     try {
       if (!selectedTeacher) return;
@@ -252,7 +242,7 @@ const Oylikberish = () => {
       render: (_, r) => Number(r._paid || 0).toLocaleString(),
       align: "right",
     },
-    
+
     {
       title: "Qoldiq (to'lash kerak)",
       key: "_remaining",
@@ -324,13 +314,18 @@ const Oylikberish = () => {
       >
         <h2>Oylik Beruvchi Sahifa</h2>
         <Space>
-          <DatePicker
-            value={moment(paymentMonth || currentMonth, "YYYY-MM")}
-            onChange={(date) =>
-              setPaymentMonth(date ? date.format("YYYY-MM") : null)
-            }
-            format="YYYY-MM"
-            picker="month"
+          <input
+            type="month"
+            value={paymentMonth || currentMonth}
+            onChange={(e) => setPaymentMonth(e.target.value)}
+            style={{
+              padding: "8px 12px",
+              fontSize: "14px",
+              border: "1px solid #d1d5db",
+              borderRadius: "6px",
+              cursor: "pointer",
+              outline: "none",
+            }}
           />
           <Button icon={<FaDownload />} onClick={exportToExcel}>
             Excel yuklab olish
@@ -389,14 +384,19 @@ const Oylikberish = () => {
             value={amount}
             onChange={handleChange}
           />
-          <DatePicker
-            value={moment(paymentMonth || currentMonth, "YYYY-MM")}
-            onChange={(date) =>
-              setPaymentMonth(date ? date.format("YYYY-MM") : null)
-            }
-            format="YYYY-MM"
-            picker="month"
-            style={{ width: "100%" }}
+          <input
+            type="month"
+            value={paymentMonth || currentMonth}
+            onChange={(e) => setPaymentMonth(e.target.value)}
+            style={{
+              width: "100%",
+              padding: "8px 12px",
+              fontSize: "14px",
+              border: "1px solid #d1d5db",
+              borderRadius: "6px",
+              cursor: "pointer",
+              outline: "none",
+            }}
             placeholder="Oyni tanlang"
           />
         </Space>

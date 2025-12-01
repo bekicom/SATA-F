@@ -15,7 +15,6 @@ import { useGetSchoolQuery } from "../../context/service/admin.service";
 import { useGetPaymentLogQuery } from "../../context/service/payment.service";
 import { useGetHarajatQuery } from "../../context/service/harajat.service";
 import moment from "moment";
-import { DatePicker } from "antd";
 import "./home.css";
 
 ChartJS.register(
@@ -37,6 +36,7 @@ const Home = () => {
   const [selectedDate, setSelectedDate] = useState(
     moment().format("YYYY-MM-DD")
   );
+  const [showCalendar, setShowCalendar] = useState(false);
 
   // Statistikalar
   const [dailyCashIncome, setDailyCashIncome] = useState(0);
@@ -196,8 +196,9 @@ const Home = () => {
     setDailyBankExpense(calculations.dailyBankExpense);
   }, [calculations]);
 
-  const handleDateChange = (date, dateString) => {
-    setSelectedDate(dateString || moment().format("YYYY-MM-DD"));
+  const handleDateChange = (e) => {
+    setSelectedDate(e.target.value);
+    setShowCalendar(false);
   };
 
   const months = [
@@ -283,13 +284,21 @@ const Home = () => {
           <h1 className="dashboard-title">Dashboard</h1>
           <p className="dashboard-subtitle">Moliyaviy ko'rsatkichlar</p>
         </div>
-        <DatePicker
-          onChange={handleDateChange}
-          value={moment(selectedDate)}
-          format="YYYY-MM-DD"
-          placeholder="Sana tanlang"
-          className="modern-datepicker"
-        />
+        <div style={{ position: "relative" }}>
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={handleDateChange}
+            style={{
+              padding: "8px 12px",
+              fontSize: "14px",
+              border: "1px solid #d1d5db",
+              borderRadius: "6px",
+              cursor: "pointer",
+              outline: "none",
+            }}
+          />
+        </div>
       </div>
 
       {/* Oylik statistika */}
@@ -326,16 +335,13 @@ const Home = () => {
           <h4>Bugungi Kirim</h4>
           <div className="daily-items">
             <div className="daily-item">
-              Naqd:{" "}
-              <strong>{dailyCashIncome.toLocaleString()} UZS</strong>
+              Naqd: <strong>{dailyCashIncome.toLocaleString()} UZS</strong>
             </div>
             <div className="daily-item">
-               Karta:{" "}
-              <strong>{dailyCardIncome.toLocaleString()} UZS</strong>
+              Karta: <strong>{dailyCardIncome.toLocaleString()} UZS</strong>
             </div>
             <div className="daily-item">
-              Bank:{" "}
-              <strong>{dailyBankIncome.toLocaleString()} UZS</strong>
+              Bank: <strong>{dailyBankIncome.toLocaleString()} UZS</strong>
             </div>
           </div>
         </div>
@@ -343,16 +349,13 @@ const Home = () => {
           <h4>Bugungi Xarajat</h4>
           <div className="daily-items">
             <div className="daily-item">
-               Naqd:{" "}
-              <strong>{dailyCashExpense.toLocaleString()} UZS</strong>
+              Naqd: <strong>{dailyCashExpense.toLocaleString()} UZS</strong>
             </div>
             <div className="daily-item">
-               Karta:{" "}
-              <strong>{dailyCardExpense.toLocaleString()} UZS</strong>
+              Karta: <strong>{dailyCardExpense.toLocaleString()} UZS</strong>
             </div>
             <div className="daily-item">
-               Bank:{" "}
-              <strong>{dailyBankExpense.toLocaleString()} UZS</strong>
+              Bank: <strong>{dailyBankExpense.toLocaleString()} UZS</strong>
             </div>
           </div>
         </div>

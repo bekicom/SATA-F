@@ -37,9 +37,9 @@ import { useNavigate } from "react-router-dom";
 
 // Services
 import { useGetTeachersQuery } from "../../context/service/oylikberish.service";
-import { 
+import {
   useGetTeacherDavomatQuery,
-  useAddTeacherDavomatMutation 
+  useAddTeacherDavomatMutation,
 } from "../../context/service/teacher.service";
 
 // Custom table
@@ -820,24 +820,6 @@ const TeacherDavomat = () => {
                     >
                       Ketdi
                     </Button>
-
-                    {/* Kelmadi tugmasi */}
-                    <Popconfirm
-                      title="O'qituvchini kelmagan deb belgilaysizmi?"
-                      onConfirm={() => markAsAbsent(teacher)}
-                      okText="Ha"
-                      cancelText="Yo'q"
-                    >
-                      <Button
-                        danger
-                        size="small"
-                        icon={<FaTimesCircle />}
-                        style={{ fontSize: "12px" , color: "black" }}
-                        disabled={arrivedTime !== "-"}
-                      >
-                        Kelmadi
-                      </Button>
-                    </Popconfirm>
                   </Space>
                 </td>
                 <td>
@@ -852,14 +834,12 @@ const TeacherDavomat = () => {
                       getTeacherMonthlyStatus(teacher._id, currentMonth);
                       setIsModalVisible(true);
                     }}
-                    style={{ 
+                    style={{
                       background: "#722ed1",
-                       borderColor: "#722ed1",
-                       width:"120px",
-                       height:"34px",
-                      
-                      
-                      }}
+                      borderColor: "#722ed1",
+                      width: "120px",
+                      height: "34px",
+                    }}
                   >
                     Hisobot
                   </Button>

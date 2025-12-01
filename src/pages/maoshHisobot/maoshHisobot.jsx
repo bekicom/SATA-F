@@ -2,15 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import "../payment/payment.css";
 import { Table } from "../../components/table/table";
 import moment from "moment";
-import {
-  Button,
-  Input,
-  Select,
-  DatePicker,
-  Modal,
-  message,
-  Pagination,
-} from "antd";
+import { Button, Input, Select, Modal, message, Pagination } from "antd";
 import {
   useGetSalaryQuery,
   useUpdateSalaryMutation,
@@ -30,22 +22,22 @@ export const MaoshHisobot = () => {
   // Filtrlar
   const [searchValue, setSearchValue] = useState("");
   const [selectedMonth, setSelectedMonth] = useState(moment().format("MM"));
-  const [selectedDate, setSelectedDate] = useState(null);
+  const [selectedDate, setSelectedDate] = useState("");
 
-  // Edit modal (oy bo‘yicha Salary hujjati)
+  // Edit modal (oy bo'yicha Salary hujjati)
   const [isVisible, setIsVisible] = useState(false);
   const [editingSalaryDoc, setEditingSalaryDoc] = useState(null);
   const [paymentMonth, setPaymentMonth] = useState("");
   const [salaryAmount, setSalaryAmount] = useState("");
 
-  // To‘lovlar modal (har bir payment detali)
+  // To'lovlar modal (har bir payment detali)
   const [isPaymentsOpen, setIsPaymentsOpen] = useState(false);
   const [paymentsModalTitle, setPaymentsModalTitle] = useState("");
   const [paymentsList, setPaymentsList] = useState([]); // {amount, date}
   const [paymentsPage, setPaymentsPage] = useState(1);
   const paymentsPageSize = 5;
 
-  // 1) Salary hujjatlaridan manual loglar ro‘yxati
+  // 1) Salary hujjatlaridan manual loglar ro'yxati
   const manualRows = useMemo(() => {
     const rows = [];
     for (const doc of salaryDocs) {
@@ -70,7 +62,7 @@ export const MaoshHisobot = () => {
     return rows;
   }, [salaryDocs]);
 
-  // 2) Filtrlash (ism, oy, sana) — log.date bo‘yicha
+  // 2) Filtrlash (ism, oy, sana) — log.date bo'yicha
   const filteredPayments = useMemo(() => {
     const s = (searchValue || "").toLowerCase();
     return manualRows.filter((r) => {
@@ -86,7 +78,7 @@ export const MaoshHisobot = () => {
     });
   }, [manualRows, searchValue, selectedMonth, selectedDate]);
 
-  // 3) ASOSIY JADVAL: o‘qituvchi + oy bo‘yicha jamlash
+  // 3) ASOSIY JADVAL: o'qituvchi + oy bo'yicha jamlash
   const grouped = useMemo(() => {
     const map = new Map();
     filteredPayments.forEach((r) => {
@@ -120,7 +112,7 @@ export const MaoshHisobot = () => {
     return { rows, grand };
   }, [filteredPayments]);
 
-  // 4) Edit (jamlangan qator bo‘yicha Salary hujjati)
+  // 4) Edit (jamlangan qator bo'yicha Salary hujjati)
   const openEditModalGroup = (groupRow) => {
     const doc = salaryDocs.find(
       (d) =>
@@ -128,7 +120,7 @@ export const MaoshHisobot = () => {
         d.paymentMonth === groupRow.paymentMonth
     );
     if (!doc) {
-      message.warning("Bu o‘qituvchi-oy bo‘yicha Salary hujjati topilmadi.");
+      message.warning("Bu o'qituvchi-oy bo'yicha Salary hujjati topilmadi.");
       return;
     }
     setEditingSalaryDoc(doc);
@@ -156,7 +148,7 @@ export const MaoshHisobot = () => {
     }
   };
 
-  // 5) To‘lovlar modalini ochish (bekzod — 30k, 50k ... sana bilan)
+  // 5) To'lovlar modalini ochish (bekzod — 30k, 50k ... sana bilan)
   const openPaymentsModal = (groupRow) => {
     const title = `${groupRow.teacher_fullname} — ${moment(
       groupRow.paymentMonth,
@@ -227,13 +219,7 @@ export const MaoshHisobot = () => {
     const aoa2 = [];
     aoa2.push([`Jamlangan — ${monthTitle}`]);
     aoa2.push([]);
-    aoa2.push([
-      "№",
-      "O'qituvchi",
-      "To'lovlar soni",
-      "Jami to'lov (UZS)",
-      "Oy",
-    ]);
+    aoa2.push(["№", "O'qituvchi", "To'lovlar soni", "Jami to'lov (UZS)", "Oy"]);
     grouped.rows.forEach((g, idx) => {
       aoa2.push([
         idx + 1,
@@ -314,19 +300,22 @@ export const MaoshHisobot = () => {
           value={salaryAmount}
           onChange={(e) => setSalaryAmount(e.target.value)}
         />
-        <DatePicker
-          value={paymentMonth ? moment(paymentMonth, "YYYY-MM") : null}
-          onChange={(date) =>
-            setPaymentMonth(date ? date.format("YYYY-MM") : "")
-          }
-          format="YYYY-MM"
-          picker="month"
-          style={{ width: "100%", marginTop: 12 }}
+        <input
+          type="month"
+          value={paymentMonth}
+          onChange={(e) => setPaymentMonth(e.target.value)}
+          style={{
+            width: "100%",
+            marginTop: 12,
+            padding: "8px",
+            border: "1px solid #d9d9d9",
+            borderRadius: "4px",
+          }}
           placeholder="Oyni tanlang"
         />
       </Modal>
 
-      {/* To‘lovlar (detal) modali */}
+      {/* To'lovlar (detal) modali */}
       <Modal
         open={isPaymentsOpen}
         title={paymentsModalTitle}
@@ -370,7 +359,7 @@ export const MaoshHisobot = () => {
             {paymentsList.length === 0 && (
               <tr>
                 <td colSpan={2} style={{ textAlign: "center", padding: 12 }}>
-                  To‘lov topilmadi
+                  To'lov topilmadi
                 </td>
               </tr>
             )}
@@ -380,7 +369,7 @@ export const MaoshHisobot = () => {
 
       {/* Filtrlar + eksport */}
       <div className="page-header">
-        <h1>Berilgan maoshlar — jamlangan ko‘rinish</h1>
+        <h1>Berilgan maoshlar — jamlangan ko'rinish</h1>
         <div className="page-header__actions">
           <Search
             placeholder="Ism bo'yicha qidiruv"
@@ -399,10 +388,26 @@ export const MaoshHisobot = () => {
               </Option>
             ))}
           </Select>
-          <DatePicker
-            onChange={(d, ds) => setSelectedDate(ds)}
-            format="DD.MM.YYYY"
-            style={{ marginRight: 10 }}
+          <input
+            type="date"
+            value={
+              selectedDate
+                ? moment(selectedDate, "DD.MM.YYYY").format("YYYY-MM-DD")
+                : ""
+            }
+            onChange={(e) => {
+              if (e.target.value) {
+                setSelectedDate(moment(e.target.value).format("DD.MM.YYYY"));
+              } else {
+                setSelectedDate("");
+              }
+            }}
+            style={{
+              marginRight: 10,
+              padding: "8px",
+              border: "1px solid #d9d9d9",
+              borderRadius: "4px",
+            }}
             placeholder="Sana"
           />
           <Button onClick={exportToExcel} type="primary" icon={<FaDownload />}>
@@ -434,26 +439,24 @@ export const MaoshHisobot = () => {
                   {g.total.toLocaleString()} UZS
                 </td>
                 <td>{moment(g.paymentMonth, "YYYY-MM").format("MMMM YYYY")}</td>
-        
+
                 <td>
                   <Button
-                    style={{ marginRight: 8, width:"120px" }}
+                    style={{ marginRight: 8, width: "120px" }}
                     onClick={() => openPaymentsModal(g)}
                   >
                     Tarix
                   </Button>
-             
                 </td>
               </tr>
             ))}
             {grouped.rows.length === 0 && (
               <tr>
                 <td colSpan={7} style={{ textAlign: "center", padding: 16 }}>
-                  Ma’lumot topilmadi
+                  Ma'lumot topilmadi
                 </td>
               </tr>
             )}
-          
           </tbody>
         </Table>
       </div>

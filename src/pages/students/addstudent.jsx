@@ -11,9 +11,9 @@ import { Button, message } from "antd";
 
 const AddStudent = () => {
   const navigate = useNavigate();
-  const [addStudent, { isLoading, isSuccess }] = useAddStudentMutation();
+  const [addStudent, { isLoading }] = useAddStudentMutation();
   const { id } = useParams();
-  const { data = [], refetch } = useGetClassQuery();
+  const { data: groups = [] } = useGetClassQuery();
   const { data: studentData = [], refetch: refetchStudents } =
     useGetCoinQuery();
   const [updateStudent] = useUpdateStudentMutation();
@@ -34,6 +34,40 @@ const AddStudent = () => {
   const [employeeNo, setEmployeeNo] = useState("");
   const schoolId = localStorage.getItem("school_id");
 
+  // 🔢 UUID asosida 4 xonali Employee No generatsiya qiluvchi helper
+  const generateEmployeeNoFromUUID = () => {
+    // uuid olish: browser bo'lsa crypto.randomUUID, bo'lmasa fallback
+    const rawUuid =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random()}`;
+
+    // Faqat raqamlarni olib, birinchi 4 tasini olamiz
+    let digits = rawUuid.replace(/\D/g, "");
+    let candidate = digits.slice(0, 4);
+
+    // Agar 4 ta raqam chiqmasa, random 4 xonali raqam
+    if (candidate.length < 4) {
+      candidate = String(Math.floor(Math.random() * 10000)).padStart(4, "0");
+    }
+
+    // Mavjud studentlar ichida unique bo'lishiga harakat qilamiz
+    const existing = new Set(
+      studentData
+        .map((s) => s.employeeNo)
+        .filter((v) => typeof v === "string" && v.trim() !== "")
+    );
+
+    let attempts = 0;
+    while (existing.has(candidate) && attempts < 20) {
+      candidate = String(Math.floor(Math.random() * 10000)).padStart(4, "0");
+      attempts += 1;
+    }
+
+    return candidate;
+  };
+
+  // ✏️ Tahrirlash rejimida ma'lumotlarni yuklash
   useEffect(() => {
     if (id) {
       const editingStudent = studentData.find((student) => student._id === id);
@@ -47,7 +81,11 @@ const AddStudent = () => {
         setSource(editingStudent.source);
         setPassportNumber(editingStudent.passportNumber);
         setGroupId(editingStudent.groupId._id);
-        setMonthlyFee(editingStudent.monthlyFee);
+        setMonthlyFee(
+          editingStudent.monthlyFee !== undefined
+            ? String(editingStudent.monthlyFee)
+            : ""
+        );
         setEmployeeNo(editingStudent.employeeNo || "");
 
         const formattedBirthDate = editingStudent.birthDate
@@ -59,8 +97,18 @@ const AddStudent = () => {
         setBirthDate(formattedBirthDate);
         setAdmissionDate(formattedAdmissionDate);
       }
+    } else {
+      // Yangi o'quvchi qo'shayotganda boshlang'ich Employee No generatsiya qilamiz
+      setEmployeeNo(generateEmployeeNoFromUUID());
     }
   }, [id, studentData]);
+
+  // Yangi qo'shayotganda default groupId ni tozalash
+  useEffect(() => {
+    if (!id && groups.length > 0) {
+      setGroupId("");
+    }
+  }, [id, groups]);
 
   // Form submit
   const handleSubmit = async (e) => {
@@ -68,6 +116,24 @@ const AddStudent = () => {
 
     if (!firstName || !lastName || !phoneNumber || !groupId || !employeeNo) {
       message.error("Iltimos, barcha kerakli maydonlarni to'ldiring.");
+      return;
+    }
+
+    // Employee No 4 xonali raqam bo'lishi kerak
+    if (!/^\d{4}$/.test(employeeNo)) {
+      message.error("Employee No faqat 4 xonali raqam bo'lishi kerak.");
+      return;
+    }
+
+    // Unikal bo'lishini tekshiramiz (update qilayotgan bo'lsak, o'zini hisobga olmaymiz)
+    const duplicate = studentData.some(
+      (s) =>
+        s.employeeNo === employeeNo && (!id || String(s._id) !== String(id))
+    );
+    if (duplicate) {
+      message.error(
+        "Bu Employee No allaqachon boshqa o'quvchiga biriktirilgan."
+      );
       return;
     }
 
@@ -84,38 +150,29 @@ const AddStudent = () => {
       admissionDate,
       passportNumber,
       schoolId,
-      monthlyFee,
+      monthlyFee: monthlyFee ? Number(monthlyFee) : 0,
       employeeNo,
     };
 
-    if (id) {
-      try {
+    try {
+      if (id) {
         await updateStudent({ id: id, body: body }).unwrap();
         message.success("O'quvchi muvaffaqiyatli yangilandi!");
-        await refetchStudents(); // ✅ Cache yangilash
-        navigate("/student");
-      } catch (err) {
-        console.error("Xatolik:", err);
-        message.error("O'quvchini yangilashda xatolik yuz berdi!");
-      }
-    } else {
-      try {
+      } else {
         await addStudent(body).unwrap();
         message.success("O'quvchi muvaffaqiyatli qo'shildi!");
-        await refetchStudents(); // ✅ Cache yangilash
-        navigate("/student");
-      } catch (err) {
-        console.error("Xatolik:", err);
-        message.error("O'quvchini qo'shishda xatolik yuz berdi!");
       }
+      await refetchStudents();
+      navigate("/student");
+    } catch (err) {
+      console.error("Xatolik:", err);
+      message.error(
+        id
+          ? "O'quvchini yangilashda xatolik yuz berdi!"
+          : "O'quvchini qo'shishda xatolik yuz berdi!"
+      );
     }
   };
-
-  useEffect(() => {
-    if (!id && data.length > 0) {
-      setGroupId("");
-    }
-  }, [id, data]);
 
   return (
     <div className="page">
@@ -127,15 +184,57 @@ const AddStudent = () => {
       </div>
 
       <form className="form_body" autoComplete="off" onSubmit={handleSubmit}>
+        {/* Employee No */}
         <label htmlFor="employeeNo">
-          <p>Employee No (QR uchun)</p>
-          <input
-            autoComplete="off"
-            type="text"
-            id="employeeNo"
-            value={employeeNo}
-            onChange={(e) => setEmployeeNo(e.target.value)}
-          />
+          <p>Employee No </p>
+          <div
+            style={{
+              display: "flex",
+              width: "10%",
+              gap: "10px",
+              alignItems: "center",
+            }}
+          >
+            <input
+              autoComplete="off"
+              type="text"
+              id="employeeNo"
+              value={employeeNo}
+              maxLength={4}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (/^\d{0,4}$/.test(v)) {
+                  setEmployeeNo(v);
+                }
+              }}
+              placeholder="0001"
+              style={{
+                flex: 1,
+                paddingLeft: "8px",
+                borderRadius: "4px",
+                border: "1px solid #ccc",
+                height: "32px",
+              }}
+            />
+            <Button
+              type="default"
+              onClick={() => setEmployeeNo(generateEmployeeNoFromUUID())}
+              style={{
+                whiteSpace: "nowrap",
+                borderRadius: "4px",
+                border: "1px solid #1890ff",
+                backgroundColor: "#fff",
+                color: "#1890ff",
+              }}
+            >
+              Yangilash
+            </Button>
+          </div>
+          <small style={{ color: "#777" }}>
+            Employee No uuid asosida 4 xonali raqam qilib avtomatik generatsiya
+            qilinadi, kerak bo‘lsa "Yangilash" tugmasi bilan o‘zgartirishingiz
+            mumkin.
+          </small>
         </label>
 
         <label htmlFor="firstName">
@@ -248,7 +347,6 @@ const AddStudent = () => {
             id="gender"
             value={gender}
             onChange={(e) => setGender(e.target.value)}
-            defaultValue={"O'g'ilbola"}
           >
             <option value="O'g'ilbola">O'g'ilbola</option>
             <option value="Qizbola">Qizbola</option>
@@ -261,7 +359,6 @@ const AddStudent = () => {
             id="source"
             value={source}
             onChange={(e) => setSource(e.target.value)}
-            defaultValue={"Telegram"}
           >
             <option value="Telegram">Telegram</option>
             <option value="Instagram">Instagram</option>
@@ -282,8 +379,8 @@ const AddStudent = () => {
             <option value="" disabled>
               Guruhni tanlang
             </option>
-            {data.length > 0 &&
-              data.map((item) => (
+            {groups.length > 0 &&
+              groups.map((item) => (
                 <option key={item._id} value={item._id}>
                   {item.name}
                 </option>
