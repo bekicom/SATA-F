@@ -17,8 +17,7 @@ export default function Darsjadval() {
 
   const [selectedDay, setSelectedDay] = useState("dushanba");
   const [selectedGroup, setSelectedGroup] = useState(null);
-
-  const [selectedLesson, setSelectedLesson] = useState(null); // EDIT uchun
+  const [selectedLesson, setSelectedLesson] = useState(null);
 
   const [form] = Form.useForm();
   const [editForm] = Form.useForm();
@@ -39,7 +38,6 @@ export default function Darsjadval() {
     ? scheduleResponse
     : scheduleResponse?.data || [];
 
-  // Dars qo'shish modalini ochish
   const openModal = (day, lessonNumber) => {
     setSelectedDay(day);
     form.setFieldsValue({ lessonNumber });
@@ -51,7 +49,6 @@ export default function Darsjadval() {
     setIsModalOpen(false);
   };
 
-  // 🎯 Dars qo'shish
   const handleAddLesson = async (values) => {
     try {
       await addLesson({
@@ -67,7 +64,6 @@ export default function Darsjadval() {
     }
   };
 
-  // 🎯 EDIT Modalni ochish
   const openEditModal = (lesson) => {
     setSelectedLesson(lesson);
     editForm.setFieldsValue({
@@ -78,14 +74,12 @@ export default function Darsjadval() {
     setIsEditModalOpen(true);
   };
 
-  // EDIT modalni yopish
   const closeEditModal = () => {
     editForm.resetFields();
     setIsEditModalOpen(false);
     setSelectedLesson(null);
   };
 
-  // 🎯 Darsni yangilash
   const handleEditLesson = async (values) => {
     try {
       await updateLesson({
@@ -101,7 +95,6 @@ export default function Darsjadval() {
     }
   };
 
-  // Haftalik kunlar
   const days = [
     { key: "dushanba", label: "DUSHANBA" },
     { key: "seshanba", label: "SESHANBA" },
@@ -113,134 +106,92 @@ export default function Darsjadval() {
 
   const lessons = Array.from({ length: 11 }, (_, i) => i + 1);
 
-  const getLessonForTimeSlot = (lessonNumber) => {
-    return schedule.find(
+  const getLessonForTimeSlot = (lessonNumber) =>
+    schedule.find(
       (item) =>
         item.day === selectedDay &&
         item.lessonNumber === lessonNumber &&
         (item.groupId?._id === selectedGroup || item.groupId === selectedGroup)
     );
-  };
 
   return (
-    <div style={{ width: "100%", padding: "20px", background: "#fff" }}>
-      <h2 style={{ marginBottom: "20px", fontSize: "18px", fontWeight: "500" }}>
-        Dars jadvali
-      </h2>
+    <div style={{ padding: 20, background: "#fff" }}>
+      <h2>Dars jadvali</h2>
 
-      {/* Guruh tanlash */}
-      <div style={{ marginBottom: "20px" }}>
-        <Select
-          placeholder="Guruhni tanlang"
-          style={{ width: 250 }}
-          onChange={(val) => setSelectedGroup(val)}
-          options={groups?.map((g) => ({
-            label: g.name || `Sinf-${g.number}`,
-            value: g._id,
-          }))}
-        />
-      </div>
+      <Select
+        placeholder="Guruhni tanlang"
+        style={{ width: 250, marginBottom: 20 }}
+        onChange={setSelectedGroup}
+        options={groups.map((g) => ({
+          label: g.name || `Sinf-${g.number}`,
+          value: g._id,
+        }))}
+      />
 
       {selectedGroup && (
-        <Tabs activeKey={selectedDay} onChange={(key) => setSelectedDay(key)}>
+        <Tabs activeKey={selectedDay} onChange={setSelectedDay}>
           {days.map((day) => (
             <TabPane tab={day.label} key={day.key}>
-              <div style={{ border: "1px solid #f0f0f0", borderRadius: 4 }}>
-                {lessons.map((lessonNumber) => {
-                  const lesson = getLessonForTimeSlot(lessonNumber);
+              {lessons.map((lessonNumber) => {
+                const lesson = getLessonForTimeSlot(lessonNumber);
 
-                  return (
-                    <div
-                      key={lessonNumber}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        borderBottom: "1px solid #f0f0f0",
-                        padding: "10px",
-                      }}
-                    >
-                      <div style={{ width: "50px", fontWeight: "bold" }}>
-                        {lessonNumber}
+                return (
+                  <div key={lessonNumber} style={{ marginBottom: 8 }}>
+                    {lesson ? (
+                      <div
+                        onClick={() => openEditModal(lesson)}
+                        style={{
+                          background: "#4096ff",
+                          color: "#fff",
+                          padding: 10,
+                          cursor: "pointer",
+                        }}
+                      >
+                        <b>{lesson.subjectId?.name}</b>
+                        <div style={{ fontSize: 12 }}>
+                          {lesson.teacherId?.firstName}{" "}
+                          {lesson.teacherId?.lastName}
+                        </div>
                       </div>
-
-                      <div style={{ flex: 1 }}>
-                        {lesson ? (
-                          <div
-                            onClick={() => openEditModal(lesson)}
-                            style={{
-                              background: "#4096ff",
-                              color: "#fff",
-                              padding: "10px",
-                              borderRadius: "4px",
-                              textAlign: "center",
-                              cursor: "pointer",
-                              border: "2px solid transparent",
-                            }}
-                            onMouseOver={(e) =>
-                              (e.currentTarget.style.border =
-                                "2px solid #0050b3")
-                            }
-                            onMouseOut={(e) =>
-                              (e.currentTarget.style.border =
-                                "2px solid transparent")
-                            }
-                          >
-                            <div style={{ fontWeight: "bold" }}>
-                              {lesson.subjectId?.name}
-                            </div>
-                            <div style={{ fontSize: "12px", marginTop: "4px" }}>
-                              {lesson.teacherId?.firstName}{" "}
-                              {lesson.teacherId?.lastName}
-                            </div>
-                          </div>
-                        ) : (
-                          <Button
-                            type="dashed"
-                            onClick={() => openModal(selectedDay, lessonNumber)}
-                            style={{ width: "100%" }}
-                          >
-                            + Qo‘shish
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    ) : (
+                      <Button
+                        type="dashed"
+                        block
+                        onClick={() => openModal(selectedDay, lessonNumber)}
+                      >
+                        + Qo‘shish ({lessonNumber}-soat)
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
             </TabPane>
           ))}
         </Tabs>
       )}
 
-      {!selectedGroup && (
-        <div style={{ textAlign: "center", padding: 60, color: "#999" }}>
-          Jadvalni ko‘rish uchun guruhni tanlang
-        </div>
-      )}
-
-      {/* Yangi dars qo‘shish modal */}
+      {/* ➕ ADD MODAL */}
       <Modal
         title="Yangi dars qo‘shish"
         open={isModalOpen}
         onCancel={handleCancel}
         footer={null}
-        width={500}
       >
         <Form form={form} layout="vertical" onFinish={handleAddLesson}>
-          <Form.Item name="subjectId" label="Fan" rules={[{ required: true }]}>
+          <Form.Item name="subjectId" label="Fan" required>
             <Select
-              placeholder="Fan tanlang"
-              options={subjects.map((s) => ({ label: s.name, value: s._id }))}
+              options={subjects.map((s) => ({
+                label: s.name,
+                value: s._id,
+              }))}
             />
           </Form.Item>
 
-          <Form.Item
-            name="teacherId"
-            label="O‘qituvchi"
-            rules={[{ required: true }]}
-          >
+          <Form.Item name="teacherId" label="O‘qituvchi" required>
             <Select
-              placeholder="O‘qituvchini tanlang"
+              showSearch
+              optionFilterProp="label"
+              placeholder="Ism yoki familiya yozing"
               options={teachers.map((t) => ({
                 label: `${t.firstName} ${t.lastName}`,
                 value: t._id,
@@ -252,35 +203,34 @@ export default function Darsjadval() {
             <Select disabled />
           </Form.Item>
 
-          <Form.Item>
-            <Button type="primary" htmlType="submit" block>
-              Saqlash
-            </Button>
-          </Form.Item>
+          <Button type="primary" htmlType="submit" block>
+            Saqlash
+          </Button>
         </Form>
       </Modal>
 
-      {/* 📌 EDIT DARS MODALI */}
+      {/* ✏️ EDIT MODAL */}
       <Modal
         title="Darsni tahrirlash"
         open={isEditModalOpen}
         onCancel={closeEditModal}
         footer={null}
-        width={500}
       >
         <Form form={editForm} layout="vertical" onFinish={handleEditLesson}>
-          <Form.Item name="subjectId" label="Fan" rules={[{ required: true }]}>
+          <Form.Item name="subjectId" label="Fan" required>
             <Select
-              options={subjects.map((s) => ({ label: s.name, value: s._id }))}
+              options={subjects.map((s) => ({
+                label: s.name,
+                value: s._id,
+              }))}
             />
           </Form.Item>
 
-          <Form.Item
-            name="teacherId"
-            label="O‘qituvchi"
-            rules={[{ required: true }]}
-          >
+          <Form.Item name="teacherId" label="O‘qituvchi" required>
             <Select
+              showSearch
+              optionFilterProp="label"
+              placeholder="Ism yoki familiya yozing"
               options={teachers.map((t) => ({
                 label: `${t.firstName} ${t.lastName}`,
                 value: t._id,
@@ -290,7 +240,10 @@ export default function Darsjadval() {
 
           <Form.Item name="lessonNumber" label="Soat">
             <Select
-              options={lessons.map((n) => ({ label: `${n}-soat`, value: n }))}
+              options={lessons.map((n) => ({
+                label: `${n}-soat`,
+                value: n,
+              }))}
             />
           </Form.Item>
 
