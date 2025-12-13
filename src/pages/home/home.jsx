@@ -48,6 +48,9 @@ const Home = () => {
   const [monthlyIncome, setMonthlyIncome] = useState(0);
   const [monthlyExpense, setMonthlyExpense] = useState(0);
   const [currentBudget, setCurrentBudget] = useState(0);
+  const [cashBudget, setCashBudget] = useState(0);
+  const [cardBudget, setCardBudget] = useState(0);
+  const [bankBudget, setBankBudget] = useState(0);
 
   const currentMonthStr = moment(selectedDate).format("MM-YYYY");
   const todayStr = moment(selectedDate).format("YYYY-MM-DD");
@@ -63,6 +66,14 @@ const Home = () => {
     let dayCashExp = 0,
       dayCardExp = 0,
       dayBankExp = 0;
+
+    // Umumiy byudjet hisobi (turi bo'yicha)
+    let totalCashInc = 0,
+      totalCardInc = 0,
+      totalBankInc = 0;
+    let totalCashExp = 0,
+      totalCardExp = 0,
+      totalBankExp = 0;
 
     // 12 oylik ma'lumotlar (grafik uchun)
     const monthlyIncomeByMonth = Array(12).fill(0);
@@ -96,6 +107,11 @@ const Home = () => {
           if (item.payment_type === "bankshot") dayBankInc += amount;
         }
 
+        // Umumiy kirim (turi bo'yicha)
+        if (item.payment_type === "cash") totalCashInc += amount;
+        if (item.payment_type === "card") totalCardInc += amount;
+        if (item.payment_type === "bankshot") totalBankInc += amount;
+
         // Oylik grafik uchun
         monthlyIncomeByMonth[monthIndex] += amount;
 
@@ -124,6 +140,11 @@ const Home = () => {
           if (item.paymentType === "plastik") dayCardExp += amount;
           if (item.paymentType === "bankshot") dayBankExp += amount;
         }
+
+        // Umumiy xarajat (turi bo'yicha)
+        if (item.paymentType === "naqd") totalCashExp += amount;
+        if (item.paymentType === "plastik") totalCardExp += amount;
+        if (item.paymentType === "bankshot") totalBankExp += amount;
 
         monthlyExpenseByMonth[monthIndex] += amount;
 
@@ -156,10 +177,18 @@ const Home = () => {
 
     const budget = initialBudget + monthlyInc - monthlyExp;
 
+    // Turi bo'yicha byudjet
+    const budgetCash = totalCashInc - totalCashExp;
+    const budgetCard = totalCardInc - totalCardExp;
+    const budgetBank = totalBankInc - totalBankExp;
+
     return {
       monthlyIncome: monthlyInc,
       monthlyExpense: monthlyExp,
       currentBudget: budget,
+      cashBudget: budgetCash,
+      cardBudget: budgetCard,
+      bankBudget: budgetBank,
       dailyCashIncome: dayCashInc,
       dailyCardIncome: dayCardInc,
       dailyBankIncome: dayBankInc,
@@ -186,6 +215,9 @@ const Home = () => {
     setMonthlyIncome(calculations.monthlyIncome);
     setMonthlyExpense(calculations.monthlyExpense);
     setCurrentBudget(calculations.currentBudget);
+    setCashBudget(calculations.cashBudget);
+    setCardBudget(calculations.cardBudget);
+    setBankBudget(calculations.bankBudget);
 
     setDailyCashIncome(calculations.dailyCashIncome);
     setDailyCardIncome(calculations.dailyCardIncome);
@@ -325,6 +357,20 @@ const Home = () => {
             <p className="stat-label">Joriy Byudjet</p>
             <h3 className="stat-value">{currentBudget.toLocaleString()}</h3>
             <span className="stat-currency">UZS</span>
+          </div>
+          <div className="budget-breakdown">
+            <div className="budget-item">
+              <span>Naqd:</span>
+              <strong>{cashBudget.toLocaleString()} UZS</strong>
+            </div>
+            <div className="budget-item">
+              <span>Karta:</span>
+              <strong>{cardBudget.toLocaleString()} UZS</strong>
+            </div>
+            <div className="budget-item">
+              <span>Bank:</span>
+              <strong>{bankBudget.toLocaleString()} UZS</strong>
+            </div>
           </div>
         </div>
       </div>
