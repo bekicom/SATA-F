@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Table, Button, message, Input, Modal, Space, Tag } from "antd";
+import { Table, Button, message, Input, Modal, Space, Tag, Radio } from "antd";
 import {
   useGetSalaryQuery,
   useGetTeachersQuery,
@@ -9,7 +9,12 @@ import moment from "moment";
 import { Loading } from "../../components/loading/loading";
 import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
-import { FaDownload } from "react-icons/fa";
+import {
+  FaDownload,
+  FaMoneyBillWave,
+  FaCreditCard,
+  FaUniversity,
+} from "react-icons/fa";
 
 const { Search } = Input;
 
@@ -35,6 +40,7 @@ const Oylikberish = () => {
   const [selectedTeacher, setSelectedTeacher] = useState(null);
   const [paymentMonth, setPaymentMonth] = useState(moment().format("YYYY-MM"));
   const [amount, setAmount] = useState("");
+  const [paymentType, setPaymentType] = useState("karta"); // 🆕 To'lov turi
 
   // ======= Helpers =======
   const formatNumber = (num) => num.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
@@ -48,7 +54,6 @@ const Oylikberish = () => {
     setFilteredTeachers(teachers);
   }, [teachers]);
 
-  // `exchange_classes.month` uchun ikkala formatni qo'llab-quvvatlaymiz: "YYYY-MM" ham, "MM-YYYY" ham
   const isSameMonth = (value, monthYYYYMM) => {
     if (!value) return false;
     const tryA = moment(value, "YYYY-MM", true);
@@ -61,7 +66,6 @@ const Oylikberish = () => {
     return false;
   };
 
-  // Salary-reportdan bitta o'qituvchi + oy bo'yicha hujjatni topish
   const findSalaryDoc = (teacherId, monthYYYYMM) =>
     salaryReport.find(
       (r) =>
@@ -69,7 +73,6 @@ const Oylikberish = () => {
         r.paymentMonth === monthYYYYMM
     );
 
-  // logs dan earned va paid ni chiqarish
   const getEarnedAndPaidFromLogs = (salaryDoc) => {
     if (!salaryDoc || !Array.isArray(salaryDoc.logs))
       return { earned: 0, paid: 0 };
@@ -83,7 +86,6 @@ const Oylikberish = () => {
     return { earned, paid };
   };
 
-  // Qo'shimcha darslar (exchange_classes) summasi
   const getExtraCharge = (teacher, monthYYYYMM) => {
     if (!teacher || !Array.isArray(teacher.exchange_classes)) return 0;
     return teacher.exchange_classes.reduce((total, ex) => {
@@ -94,15 +96,14 @@ const Oylikberish = () => {
     }, 0);
   };
 
-  // Ko'rinadigan qiymatlarni chiqarish (har bir o'qituvchi, joriy oy)
   const currentMonth = useMemo(() => moment().format("YYYY-MM"), []);
   const withComputed = useMemo(() => {
     return filteredTeachers.map((t) => {
       const sd = findSalaryDoc(t._id, currentMonth);
       const { earned, paid } = getEarnedAndPaidFromLogs(sd);
       const extra = getExtraCharge(t, currentMonth);
-      const total = earned + extra; // Umumiy oylik (hisoblangan)
-      const remaining = total - paid; // Qoldiq (to'lanishi kerak)
+      const total = earned + extra;
+      const remaining = total - paid;
       return {
         ...t,
         _earned: earned,
@@ -114,14 +115,15 @@ const Oylikberish = () => {
     });
   }, [filteredTeachers, salaryReport, currentMonth]);
 
-  // To'lov modalini ochish
   const handleOpenModal = (teacher) => {
     setSelectedTeacher(teacher);
-    setPaymentMonth(currentMonth); // default hozirgi oy
+    setPaymentMonth(currentMonth);
+    setAmount("");
+    setPaymentType("karta"); // 🆕 Default to'lov turi
     setIsModalVisible(true);
   };
 
-  // To'lov qilish
+  // 🆕 To'lov qilish (paymentType bilan)
   const handlePay = async () => {
     try {
       if (!selectedTeacher) return;
@@ -134,7 +136,8 @@ const Oylikberish = () => {
       await paySalary({
         teacherId: selectedTeacher._id,
         salaryAmount: plainNumber,
-        paymentMonth: paymentMonth, // YYYY-MM
+        paymentMonth: paymentMonth,
+        paymentType: paymentType, // 🆕 To'lov turini yuborish
       }).unwrap();
 
       message.success("Oylik muvaffaqiyatli to'landi");
@@ -146,7 +149,6 @@ const Oylikberish = () => {
     }
   };
 
-  // Qidiruv
   const handleSearch = (value) => {
     const v = (value || "").toLowerCase();
     const filtered = teachers.filter(
@@ -158,7 +160,6 @@ const Oylikberish = () => {
     setFilteredTeachers(filtered);
   };
 
-  // Excel export
   const exportToExcel = () => {
     const rows = withComputed.map((t, idx) => ({
       "#": idx + 1,
@@ -183,7 +184,6 @@ const Oylikberish = () => {
     saveAs(new Blob([wbout], { type: "application/octet-stream" }), fname);
   };
 
-  // Jadval ustunlari
   const columns = [
     {
       title: "Ism / Familiya",
@@ -219,19 +219,19 @@ const Oylikberish = () => {
       align: "right",
     },
     {
-      title: "Qo'shimcha ",
+      title: "Qo'shimcha",
       key: "_extra",
       render: (_, r) => Number(r._extra || 0).toLocaleString(),
       align: "right",
     },
     {
-      title: "Jami oylik ",
-      key: "_extra",
+      title: "Jami oylik",
+      key: "_total",
       render: (_, r) => Number(r.monthlySalary || 0).toLocaleString(),
       align: "right",
     },
     {
-      title: "Davomatdan ",
+      title: "Davomatdan",
       key: "_earned",
       render: (_, r) => Number(r._earned || 0).toLocaleString(),
       align: "right",
@@ -242,7 +242,6 @@ const Oylikberish = () => {
       render: (_, r) => Number(r._paid || 0).toLocaleString(),
       align: "right",
     },
-
     {
       title: "Qoldiq (to'lash kerak)",
       key: "_remaining",
@@ -262,7 +261,6 @@ const Oylikberish = () => {
           icon={<i className="fas fa-dollar-sign" />}
           onClick={() => handleOpenModal(record)}
           type="primary"
-          // disabled={Number(record._remaining || 0) <= 0}
         >
           To'lov
         </Button>
@@ -270,19 +268,31 @@ const Oylikberish = () => {
     },
   ];
 
-  // Chek
+  // 🆕 Chekni to'lov turi bilan chop etish
   const printReceipt = (paymentDetails) => {
+    const paymentTypeLabel =
+      paymentDetails.paymentType === "naqd"
+        ? "Naqd pul"
+        : paymentDetails.paymentType === "karta"
+        ? "Karta"
+        : paymentDetails.paymentType === "bank"
+        ? "Bank o'tkazmasi"
+        : "";
+
     const printWindow = window.open("", "", "width=600,height=400");
     printWindow.document.write(`
       <div style="padding-inline: 5mm; font-family:sans-serif;padding-block: 5mm; align-items:center; display: flex; flex-direction:column; gap:5mm; width:80mm">
         <img src="/logo.png" alt="logo" id="logo" />
-        <b style="font-size: 1rem; text-align:center">Oylik berilganlik xaqida kvitansiya</b>
+        <b style="font-size: 1rem; text-align:center">Oylik berilganlik haqida kvitansiya</b>
         -------------------------------------------------------
         <div style="width:100%; display:flex; justify-content:space-between; align-items:center">
           <b>O'qituvchi:</b><span>${paymentDetails.teacher}</span>
         </div>
         <div style="width:100%; display:flex; justify-content:space-between; align-items:center">
           <b>To'lov miqdori:</b><span>${paymentDetails.amount} UZS</span>
+        </div>
+        <div style="width:100%; display:flex; justify-content:space-between; align-items:center">
+          <b>To'lov turi:</b><span>${paymentTypeLabel}</span>
         </div>
         <div style="width:100%; display:flex; justify-content:space-between; align-items:center">
           <b>To'lov oyi:</b><span>${paymentDetails.paymentMonth}</span>
@@ -299,7 +309,6 @@ const Oylikberish = () => {
     };
   };
 
-  // UI Loading / Error
   if (fetchLoading || salaryFetchLoading) return <Loading />;
   if (fetchError || salaryFetchError) return <div>Xatolik yuz berdi</div>;
 
@@ -349,6 +358,7 @@ const Oylikberish = () => {
         pagination={{ pageSize: 10 }}
       />
 
+      {/* 🆕 Yangilangan Modal - To'lov turi tanlash bilan */}
       <Modal
         title="To'lov qilish"
         open={isModalVisible}
@@ -362,11 +372,11 @@ const Oylikberish = () => {
             type="primary"
             onClick={async () => {
               await handlePay();
-              // Chek
               if (selectedTeacher) {
                 printReceipt({
                   teacher: `${selectedTeacher.firstName} ${selectedTeacher.lastName}`,
                   amount: Number(onlyDigits(amount) || 0).toLocaleString(),
+                  paymentType: paymentType,
                   paymentMonth: paymentMonth || currentMonth,
                   date: moment().format("DD-MM-YYYY HH:mm"),
                 });
@@ -378,27 +388,104 @@ const Oylikberish = () => {
           </Button>,
         ]}
       >
-        <Space direction="vertical" style={{ width: "100%" }}>
-          <Input
-            placeholder="To'lov summasi"
-            value={amount}
-            onChange={handleChange}
-          />
-          <input
-            type="month"
-            value={paymentMonth || currentMonth}
-            onChange={(e) => setPaymentMonth(e.target.value)}
-            style={{
-              width: "100%",
-              padding: "8px 12px",
-              fontSize: "14px",
-              border: "1px solid #d1d5db",
-              borderRadius: "6px",
-              cursor: "pointer",
-              outline: "none",
-            }}
-            placeholder="Oyni tanlang"
-          />
+        <Space direction="vertical" style={{ width: "100%" }} size="large">
+          <div>
+            <label
+              style={{ display: "block", marginBottom: 8, fontWeight: 500 }}
+            >
+              To'lov summasi
+            </label>
+            <Input
+              placeholder="To'lov summasini kiriting"
+              value={amount}
+              onChange={handleChange}
+              size="large"
+              prefix={<span style={{ color: "#999" }}>UZS</span>}
+            />
+          </div>
+
+          <div>
+            <label
+              style={{ display: "block", marginBottom: 8, fontWeight: 500 }}
+            >
+              To'lov oyi
+            </label>
+            <input
+              type="month"
+              value={paymentMonth || currentMonth}
+              onChange={(e) => setPaymentMonth(e.target.value)}
+              style={{
+                width: "100%",
+                padding: "8px 12px",
+                fontSize: "14px",
+                border: "1px solid #d1d5db",
+                borderRadius: "6px",
+                cursor: "pointer",
+                outline: "none",
+              }}
+            />
+          </div>
+
+          {/* 🆕 To'lov turini tanlash */}
+          <div>
+            <label
+              style={{ display: "block", marginBottom: 12, fontWeight: 500 }}
+            >
+              To'lov turi
+            </label>
+            <Radio.Group
+              onChange={(e) => setPaymentType(e.target.value)}
+              value={paymentType}
+              style={{ width: "100%" }}
+            >
+              <Space direction="vertical" style={{ width: "100%" }}>
+                <Radio
+                  value="naqd"
+                  style={{
+                    width: "100%",
+                    padding: "12px",
+                    border: "1px solid #d9d9d9",
+                    borderRadius: "6px",
+                  }}
+                >
+                  <Space>
+                    <FaMoneyBillWave
+                      style={{ color: "#52c41a", fontSize: 20 }}
+                    />
+                    <span style={{ fontWeight: 500 }}>Naqd pul</span>
+                  </Space>
+                </Radio>
+                <Radio
+                  value="karta"
+                  style={{
+                    width: "100%",
+                    padding: "12px",
+                    border: "1px solid #d9d9d9",
+                    borderRadius: "6px",
+                  }}
+                >
+                  <Space>
+                    <FaCreditCard style={{ color: "#1890ff", fontSize: 20 }} />
+                    <span style={{ fontWeight: 500 }}>Karta</span>
+                  </Space>
+                </Radio>
+                <Radio
+                  value="bank"
+                  style={{
+                    width: "100%",
+                    padding: "12px",
+                    border: "1px solid #d9d9d9",
+                    borderRadius: "6px",
+                  }}
+                >
+                  <Space>
+                    <FaUniversity style={{ color: "#722ed1", fontSize: 20 }} />
+                    <span style={{ fontWeight: 500 }}>Bank o'tkazmasi</span>
+                  </Space>
+                </Radio>
+              </Space>
+            </Radio.Group>
+          </div>
         </Space>
       </Modal>
     </div>

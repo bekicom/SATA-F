@@ -36,7 +36,6 @@ const Home = () => {
   const [selectedDate, setSelectedDate] = useState(
     moment().format("YYYY-MM-DD")
   );
-  const [showCalendar, setShowCalendar] = useState(false);
 
   // Statistikalar
   const [dailyCashIncome, setDailyCashIncome] = useState(0);
@@ -84,79 +83,83 @@ const Home = () => {
     const dailyIncomeData = [];
     const dailyExpenseData = [];
 
-    // Har bir payment va harajatni aylantiramiz
-    [...payments, ...harajatlar].forEach((item) => {
+    // ✅ KIRIMLARNI HISOBLASH (payments)
+    payments.forEach((item) => {
       const date = moment(item.createdAt);
       const dateStr = date.format("YYYY-MM-DD");
       const monthStr = date.format("MM-YYYY");
       const monthIndex = date.month(); // 0-11
+      const amount = item.payment_quantity || 0;
 
-      // Agar payment bo'lsa
-      if (item.payment_quantity !== undefined) {
-        const amount = item.payment_quantity || 0;
-
-        // Oylik jami
-        if (monthStr === currentMonthStr) {
-          monthlyInc += amount;
-        }
-
-        // Kunlik jami
-        if (dateStr === todayStr) {
-          if (item.payment_type === "cash") dayCashInc += amount;
-          if (item.payment_type === "card") dayCardInc += amount;
-          if (item.payment_type === "bankshot") dayBankInc += amount;
-        }
-
-        // Umumiy kirim (turi bo'yicha)
-        if (item.payment_type === "cash") totalCashInc += amount;
-        if (item.payment_type === "card") totalCardInc += amount;
-        if (item.payment_type === "bankshot") totalBankInc += amount;
-
-        // Oylik grafik uchun
-        monthlyIncomeByMonth[monthIndex] += amount;
-
-        // Oxirgi 30 kun grafik
-        if (date.isSameOrAfter(moment().subtract(29, "days"))) {
-          const dayIndex = 29 - moment().diff(date, "days");
-          if (!dailyIncomeData[dayIndex]) {
-            dailyIncomeData[dayIndex] = 0;
-            dailyExpenseData[dayIndex] = 0;
-            dailyLabels[dayIndex] = date.format("DD MMM");
-          }
-          dailyIncomeData[dayIndex] += amount;
-        }
+      // Oylik jami
+      if (monthStr === currentMonthStr) {
+        monthlyInc += amount;
       }
 
-      // Agar harajat bo'lsa
-      if (item.summ !== undefined) {
-        const amount = item.summ || 0;
+      // Kunlik jami
+      if (dateStr === todayStr) {
+        if (item.payment_type === "cash") dayCashInc += amount;
+        if (item.payment_type === "card") dayCardInc += amount;
+        if (item.payment_type === "bankshot") dayBankInc += amount;
+      }
 
-        if (monthStr === currentMonthStr) {
-          monthlyExp += amount;
+      // Umumiy kirim (turi bo'yicha)
+      if (item.payment_type === "cash") totalCashInc += amount;
+      if (item.payment_type === "card") totalCardInc += amount;
+      if (item.payment_type === "bankshot") totalBankInc += amount;
+
+      // Oylik grafik uchun
+      monthlyIncomeByMonth[monthIndex] += amount;
+
+      // Oxirgi 30 kun grafik
+      if (date.isSameOrAfter(moment().subtract(29, "days"))) {
+        const dayIndex = 29 - moment().diff(date, "days");
+        if (!dailyIncomeData[dayIndex]) {
+          dailyIncomeData[dayIndex] = 0;
+          dailyExpenseData[dayIndex] = 0;
+          dailyLabels[dayIndex] = date.format("DD MMM");
         }
+        dailyIncomeData[dayIndex] += amount;
+      }
+    });
 
-        if (dateStr === todayStr) {
-          if (item.paymentType === "naqd") dayCashExp += amount;
-          if (item.paymentType === "plastik") dayCardExp += amount;
-          if (item.paymentType === "bankshot") dayBankExp += amount;
+    // ✅ XARAJATLARNI HISOBLASH (harajatlar + oylik to'lovlar)
+    harajatlar.forEach((item) => {
+      const date = moment(item.createdAt);
+      const dateStr = date.format("YYYY-MM-DD");
+      const monthStr = date.format("MM-YYYY");
+      const monthIndex = date.month();
+      const amount = item.summ || 0;
+
+      // Oylik jami
+      if (monthStr === currentMonthStr) {
+        monthlyExp += amount;
+      }
+
+      // Kunlik jami
+      if (dateStr === todayStr) {
+        if (item.paymentType === "naqd") dayCashExp += amount;
+        if (item.paymentType === "plastik") dayCardExp += amount;
+        if (item.paymentType === "bankshot") dayBankExp += amount;
+      }
+
+      // Umumiy xarajat (turi bo'yicha)
+      if (item.paymentType === "naqd") totalCashExp += amount;
+      if (item.paymentType === "plastik") totalCardExp += amount;
+      if (item.paymentType === "bankshot") totalBankExp += amount;
+
+      // Oylik grafik
+      monthlyExpenseByMonth[monthIndex] += amount;
+
+      // Oxirgi 30 kun grafik
+      if (date.isSameOrAfter(moment().subtract(29, "days"))) {
+        const dayIndex = 29 - moment().diff(date, "days");
+        if (!dailyExpenseData[dayIndex]) {
+          dailyExpenseData[dayIndex] = 0;
+          dailyIncomeData[dayIndex] = 0;
+          dailyLabels[dayIndex] = date.format("DD MMM");
         }
-
-        // Umumiy xarajat (turi bo'yicha)
-        if (item.paymentType === "naqd") totalCashExp += amount;
-        if (item.paymentType === "plastik") totalCardExp += amount;
-        if (item.paymentType === "bankshot") totalBankExp += amount;
-
-        monthlyExpenseByMonth[monthIndex] += amount;
-
-        if (date.isSameOrAfter(moment().subtract(29, "days"))) {
-          const dayIndex = 29 - moment().diff(date, "days");
-          if (!dailyExpenseData[dayIndex]) {
-            dailyExpenseData[dayIndex] = 0;
-            dailyIncomeData[dayIndex] = 0;
-            dailyLabels[dayIndex] = date.format("DD MMM");
-          }
-          dailyExpenseData[dayIndex] += amount;
-        }
+        dailyExpenseData[dayIndex] += amount;
       }
     });
 
@@ -230,7 +233,6 @@ const Home = () => {
 
   const handleDateChange = (e) => {
     setSelectedDate(e.target.value);
-    setShowCalendar(false);
   };
 
   const months = [
@@ -360,16 +362,28 @@ const Home = () => {
           </div>
           <div className="budget-breakdown">
             <div className="budget-item">
-              <span>Naqd:</span>
-              <strong>{cashBudget.toLocaleString()} UZS</strong>
+              <span>💵 Naqd:</span>
+              <strong
+                style={{ color: cashBudget >= 0 ? "#10b981" : "#ef4444" }}
+              >
+                {cashBudget.toLocaleString()} UZS
+              </strong>
             </div>
             <div className="budget-item">
-              <span>Karta:</span>
-              <strong>{cardBudget.toLocaleString()} UZS</strong>
+              <span>💳 Karta:</span>
+              <strong
+                style={{ color: cardBudget >= 0 ? "#10b981" : "#ef4444" }}
+              >
+                {cardBudget.toLocaleString()} UZS
+              </strong>
             </div>
             <div className="budget-item">
-              <span>Bank:</span>
-              <strong>{bankBudget.toLocaleString()} UZS</strong>
+              <span>🏦 Bank:</span>
+              <strong
+                style={{ color: bankBudget >= 0 ? "#10b981" : "#ef4444" }}
+              >
+                {bankBudget.toLocaleString()} UZS
+              </strong>
             </div>
           </div>
         </div>
@@ -381,13 +395,13 @@ const Home = () => {
           <h4>Bugungi Kirim</h4>
           <div className="daily-items">
             <div className="daily-item">
-              Naqd: <strong>{dailyCashIncome.toLocaleString()} UZS</strong>
+              💵 Naqd: <strong>{dailyCashIncome.toLocaleString()} UZS</strong>
             </div>
             <div className="daily-item">
-              Karta: <strong>{dailyCardIncome.toLocaleString()} UZS</strong>
+              💳 Karta: <strong>{dailyCardIncome.toLocaleString()} UZS</strong>
             </div>
             <div className="daily-item">
-              Bank: <strong>{dailyBankIncome.toLocaleString()} UZS</strong>
+              🏦 Bank: <strong>{dailyBankIncome.toLocaleString()} UZS</strong>
             </div>
           </div>
         </div>
@@ -395,13 +409,13 @@ const Home = () => {
           <h4>Bugungi Xarajat</h4>
           <div className="daily-items">
             <div className="daily-item">
-              Naqd: <strong>{dailyCashExpense.toLocaleString()} UZS</strong>
+              💵 Naqd: <strong>{dailyCashExpense.toLocaleString()} UZS</strong>
             </div>
             <div className="daily-item">
-              Karta: <strong>{dailyCardExpense.toLocaleString()} UZS</strong>
+              💳 Karta: <strong>{dailyCardExpense.toLocaleString()} UZS</strong>
             </div>
             <div className="daily-item">
-              Bank: <strong>{dailyBankExpense.toLocaleString()} UZS</strong>
+              🏦 Bank: <strong>{dailyBankExpense.toLocaleString()} UZS</strong>
             </div>
           </div>
         </div>
