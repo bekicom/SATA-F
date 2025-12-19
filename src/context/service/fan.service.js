@@ -2,6 +2,8 @@ import { apiSlice } from "./api.service";
 
 export const faApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
+    /* ================= FANLAR ================= */
+
     // 🔹 Fan qo‘shish
     addSubject: builder.mutation({
       query: (body) => ({
@@ -12,7 +14,7 @@ export const faApi = apiSlice.injectEndpoints({
       invalidatesTags: ["Subjects"],
     }),
 
-    // 🔹 Barcha fanlarni olish
+    // 🔹 Barcha fanlar
     getSubjects: builder.query({
       query: () => "/subjects",
       providesTags: ["Subjects"],
@@ -42,14 +44,37 @@ export const faApi = apiSlice.injectEndpoints({
       }),
       invalidatesTags: ["Subjects"],
     }),
+
+    /* ================= CHORAKLAR ================= */
+
+    // 🔹 4 ta chorak sanasini saqlash
+    setQuarters: builder.mutation({
+      query: (body) => ({
+        url: "/quarters/set",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["Quarters"],
+    }),
+
+    // 🔹 Maktab choraklarini olish
+    getQuartersBySchool: builder.query({
+      query: (schoolId) => `/quarters/${schoolId}`,
+      providesTags: ["Quarters"],
+    }),
   }),
 });
 
-// Hooklarni eksport qilish
+// 🔥 Hooklar
 export const {
+  // fanlar
   useAddSubjectMutation,
   useGetSubjectsQuery,
   useGetSubjectByIdQuery,
   useUpdateSubjectMutation,
   useDeleteSubjectMutation,
+
+  // choraklar
+  useSetQuartersMutation,
+  useGetQuartersBySchoolQuery,
 } = faApi;

@@ -1,175 +1,183 @@
-import React, { useState } from "react";
-import {
-  Table,
-  Button,
-  Switch,
-  message,
-  Space,
-  Modal,
-  Form,
-  Input,
-} from "antd";
+import React, { useEffect, useState } from "react";
+import { Table, Button, Switch, message, Modal, Form, Input } from "antd";
+
 import {
   useAddSubjectMutation,
   useGetSubjectsQuery,
   useUpdateSubjectMutation,
   useDeleteSubjectMutation,
+  useSetQuartersMutation,
+  useGetQuartersBySchoolQuery,
 } from "../../context/service/fan.service";
 
 export default function Fan() {
+  const schoolId = localStorage.getItem("school_id");
+
+  // ================= FANLAR =================
   const { data: subjects = [], isLoading, refetch } = useGetSubjectsQuery();
   const [addSubject] = useAddSubjectMutation();
   const [updateSubject] = useUpdateSubjectMutation();
   const [deleteSubject] = useDeleteSubjectMutation();
 
+  // ================= CHORAKLAR =================
+  const [saveQuartersMutation] = useSetQuartersMutation(); // ✅ NOM O‘ZGARDI
+  const { data: quarterData } = useGetQuartersBySchoolQuery(schoolId);
+
+  const [quarters, setQuarters] = useState([
+    { quarter: 1, startDate: "", endDate: "" },
+    { quarter: 2, startDate: "", endDate: "" },
+    { quarter: 3, startDate: "", endDate: "" },
+    { quarter: 4, startDate: "", endDate: "" },
+  ]);
+
+  useEffect(() => {
+    if (quarterData?.quarters) {
+      setQuarters(
+        quarterData.quarters.map((q) => ({
+          quarter: q.quarter,
+          startDate: q.startDate?.slice(0, 10),
+          endDate: q.endDate?.slice(0, 10),
+        }))
+      );
+    }
+  }, [quarterData]);
+
+  const handleQuarterChange = (index, field, value) => {
+    const copy = [...quarters];
+    copy[index][field] = value;
+    setQuarters(copy);
+  };
+
+  const saveQuarters = async () => {
+    try {
+      await saveQuartersMutation({
+        schoolId,
+        quarters,
+      }).unwrap();
+
+      message.success("Chorak sanalari saqlandi ✅");
+    } catch {
+      message.error("Xatolik: choraklar saqlanmadi");
+    }
+  };
+
+  // ================= FAN CRUD =================
   const [form] = Form.useForm();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const schoolId = localStorage.getItem("school_id");
 
-  // 🔹 Modalni ochish
-  const showModal = () => {
-    setIsModalOpen(true);
-  };
-
-  // 🔹 Modalni yopish
-  const handleCancel = () => {
-    form.resetFields();
-    setIsModalOpen(false);
-  };
-
-  // 🔹 Yangi fan qo‘shish
   const handleAdd = async (values) => {
     try {
       await addSubject({ ...values, schoolId }).unwrap();
-      message.success("Fan muvaffaqiyatli qo‘shildi");
+      message.success("Fan qo‘shildi");
       form.resetFields();
       setIsModalOpen(false);
       refetch();
-    } catch (err) {
-      message.error(err?.data?.message || "Xatolik yuz berdi");
+    } catch {
+      message.error("Xatolik");
     }
   };
 
-  // 🔹 Fan statusini o‘zgartirish
   const handleToggle = async (record) => {
-    try {
-      await updateSubject({
-        id: record._id,
-        body: { isActive: !record.isActive },
-      }).unwrap();
-      message.success("Fan holati o‘zgartirildi");
-      refetch();
-    } catch (err) {
-      message.error("Xatolik: holat o‘zgartirilmadi");
-    }
+    await updateSubject({
+      id: record._id,
+      body: { isActive: !record.isActive },
+    });
+    refetch();
   };
 
-  // 🔹 Fan o‘chirish (tasdiq bilan)
   const confirmDelete = (id) => {
     Modal.confirm({
-      title: "Tasdiqlash",
-      content: "Rosdan ham ushbu fanni o‘chirmoqchimisiz?",
-      okText: "Ha, o‘chirish",
+      title: "O‘chirishni tasdiqlaysizmi?",
       okType: "danger",
-      cancelText: "Bekor qilish",
       onOk: async () => {
-        try {
-          await deleteSubject(id).unwrap();
-          message.success("Fan o‘chirildi");
-          refetch();
-        } catch (err) {
-          message.error("Xatolik: fan o‘chmadi");
-        }
+        await deleteSubject(id);
+        refetch();
       },
     });
   };
 
   const columns = [
-    {
-      title: "Fan nomi",
-      dataIndex: "name",
-      key: "name",
-    },
+    { title: "Fan nomi", dataIndex: "name" },
     {
       title: "Holat",
-      dataIndex: "isActive",
-      key: "isActive",
-      render: (_, record) => (
-        <Switch
-          checked={record.isActive}
-          onChange={() => handleToggle(record)}
-        />
+      render: (_, r) => (
+        <Switch checked={r.isActive} onChange={() => handleToggle(r)} />
       ),
     },
     {
       title: "Amallar",
-      key: "action",
-      render: (_, record) => (
-        <Space>
-          <Button danger onClick={() => confirmDelete(record._id)}>
-            O‘chirish
-          </Button>
-        </Space>
+      render: (_, r) => (
+        <Button danger onClick={() => confirmDelete(r._id)}>
+          O‘chirish
+        </Button>
       ),
     },
   ];
 
   return (
-    <div
-      style={{
-        width: "100%",
-        padding: "24px",
-        minHeight: "100vh",
-        background: "#f5f6fa",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "20px",
-        }}
-      >
-        <h2 style={{ margin: 0 }}>Fanlar boshqaruvi</h2>
-        <Button type="primary" onClick={showModal}>
-          Yangi fan qo‘shish
-        </Button>
-      </div>
+    <div style={{ padding: "24px" }}>
+      <h2>📘 Fanlar</h2>
+      <Button type="primary" onClick={() => setIsModalOpen(true)}>
+        Fan qo‘shish
+      </Button>
 
-      {/* 🔹 Fanlar jadvali */}
       <Table
         columns={columns}
         dataSource={subjects}
-        loading={isLoading}
         rowKey="_id"
-        pagination={false}
-        bordered
-        size="middle" // 🔹 kichikroq jadval
-        style={{ fontSize: "14px" }} // 🔹 font ham kichikroq
+        loading={isLoading}
+        style={{ marginTop: 16 }}
       />
 
-      {/* 🔹 Qo‘shish Modal */}
-      <Modal
-        title="Yangi fan qo‘shish"
-        open={isModalOpen}
-        onCancel={handleCancel}
-        footer={null}
-      >
-        <Form form={form} layout="vertical" onFinish={handleAdd}>
-          <Form.Item
-            name="name"
-            label="Fan nomi"
-            rules={[{ required: true, message: "Fan nomini kiriting" }]}
-          >
-            <Input placeholder="Masalan: Fizika" />
-          </Form.Item>
+      <hr style={{ margin: "32px 0" }} />
 
-          <Form.Item>
-            <Button type="primary" htmlType="submit" block>
-              Qo‘shish
-            </Button>
+      <h2>📅 Chorak sanalari</h2>
+
+      {quarters.map((q, index) => (
+        <div
+          key={q.quarter}
+          style={{ display: "flex", gap: 12, marginBottom: 10 }}
+        >
+          <b style={{ width: 90 }}>{q.quarter}-chorak</b>
+
+          <input
+            type="date"
+            value={q.startDate}
+            onChange={(e) =>
+              handleQuarterChange(index, "startDate", e.target.value)
+            }
+          />
+
+          <span>—</span>
+
+          <input
+            type="date"
+            value={q.endDate}
+            onChange={(e) =>
+              handleQuarterChange(index, "endDate", e.target.value)
+            }
+          />
+        </div>
+      ))}
+
+      <Button type="primary" onClick={saveQuarters}>
+        Choraklarni saqlash
+      </Button>
+
+      {/* MODAL */}
+      <Modal
+        open={isModalOpen}
+        title="Yangi fan"
+        footer={null}
+        onCancel={() => setIsModalOpen(false)}
+      >
+        <Form form={form} onFinish={handleAdd} layout="vertical">
+          <Form.Item name="name" label="Fan nomi" rules={[{ required: true }]}>
+            <Input />
           </Form.Item>
+          <Button type="primary" htmlType="submit" block>
+            Saqlash
+          </Button>
         </Form>
       </Modal>
     </div>

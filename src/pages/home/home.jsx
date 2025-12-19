@@ -46,6 +46,12 @@ const Home = () => {
   const [dailyBankExpense, setDailyBankExpense] = useState(0);
   const [monthlyIncome, setMonthlyIncome] = useState(0);
   const [monthlyExpense, setMonthlyExpense] = useState(0);
+  const [monthlyCashIncome, setMonthlyCashIncome] = useState(0);
+  const [monthlyCardIncome, setMonthlyCardIncome] = useState(0);
+  const [monthlyBankIncome, setMonthlyBankIncome] = useState(0);
+  const [monthlyCashExpense, setMonthlyCashExpense] = useState(0);
+  const [monthlyCardExpense, setMonthlyCardExpense] = useState(0);
+  const [monthlyBankExpense, setMonthlyBankExpense] = useState(0);
   const [currentBudget, setCurrentBudget] = useState(0);
   const [cashBudget, setCashBudget] = useState(0);
   const [cardBudget, setCardBudget] = useState(0);
@@ -58,6 +64,12 @@ const Home = () => {
   const calculations = useMemo(() => {
     let monthlyInc = 0;
     let monthlyExp = 0;
+    let monthlyCashInc = 0,
+      monthlyCardInc = 0,
+      monthlyBankInc = 0;
+    let monthlyCashExp = 0,
+      monthlyCardExp = 0,
+      monthlyBankExp = 0;
 
     let dayCashInc = 0,
       dayCardInc = 0,
@@ -94,6 +106,9 @@ const Home = () => {
       // Oylik jami
       if (monthStr === currentMonthStr) {
         monthlyInc += amount;
+        if (item.payment_type === "cash") monthlyCashInc += amount;
+        if (item.payment_type === "card") monthlyCardInc += amount;
+        if (item.payment_type === "bankshot") monthlyBankInc += amount;
       }
 
       // Kunlik jami
@@ -134,6 +149,9 @@ const Home = () => {
       // Oylik jami
       if (monthStr === currentMonthStr) {
         monthlyExp += amount;
+        if (item.paymentType === "naqd") monthlyCashExp += amount;
+        if (item.paymentType === "plastik") monthlyCardExp += amount;
+        if (item.paymentType === "bankshot") monthlyBankExp += amount;
       }
 
       // Kunlik jami
@@ -188,6 +206,12 @@ const Home = () => {
     return {
       monthlyIncome: monthlyInc,
       monthlyExpense: monthlyExp,
+      monthlyCashIncome: monthlyCashInc,
+      monthlyCardIncome: monthlyCardInc,
+      monthlyBankIncome: monthlyBankInc,
+      monthlyCashExpense: monthlyCashExp,
+      monthlyCardExpense: monthlyCardExp,
+      monthlyBankExpense: monthlyBankExp,
       currentBudget: budget,
       cashBudget: budgetCash,
       cardBudget: budgetCard,
@@ -217,6 +241,12 @@ const Home = () => {
   useEffect(() => {
     setMonthlyIncome(calculations.monthlyIncome);
     setMonthlyExpense(calculations.monthlyExpense);
+    setMonthlyCashIncome(calculations.monthlyCashIncome);
+    setMonthlyCardIncome(calculations.monthlyCardIncome);
+    setMonthlyBankIncome(calculations.monthlyBankIncome);
+    setMonthlyCashExpense(calculations.monthlyCashExpense);
+    setMonthlyCardExpense(calculations.monthlyCardExpense);
+    setMonthlyBankExpense(calculations.monthlyBankExpense);
     setCurrentBudget(calculations.currentBudget);
     setCashBudget(calculations.cashBudget);
     setCardBudget(calculations.cardBudget);
@@ -344,6 +374,26 @@ const Home = () => {
             <h3 className="stat-value">{monthlyIncome.toLocaleString()}</h3>
             <span className="stat-currency">UZS</span>
           </div>
+          <div className="budget-breakdown">
+            <div className="budget-item">
+              <span>💵 Naqd:</span>
+              <strong style={{ color: "#10b981" }}>
+                {monthlyCashIncome.toLocaleString()} UZS
+              </strong>
+            </div>
+            <div className="budget-item">
+              <span>💳 Karta:</span>
+              <strong style={{ color: "#10b981" }}>
+                {monthlyCardIncome.toLocaleString()} UZS
+              </strong>
+            </div>
+            <div className="budget-item">
+              <span>🏦 Bank:</span>
+              <strong style={{ color: "#10b981" }}>
+                {monthlyBankIncome.toLocaleString()} UZS
+              </strong>
+            </div>
+          </div>
         </div>
         <div className="stat-card stat-expense">
           <div className="stat-icon"></div>
@@ -351,6 +401,26 @@ const Home = () => {
             <p className="stat-label">Oylik Xarajat</p>
             <h3 className="stat-value">{monthlyExpense.toLocaleString()}</h3>
             <span className="stat-currency">UZS</span>
+          </div>
+          <div className="budget-breakdown">
+            <div className="budget-item">
+              <span>💵 Naqd:</span>
+              <strong style={{ color: "#ef4444" }}>
+                {monthlyCashExpense.toLocaleString()} UZS
+              </strong>
+            </div>
+            <div className="budget-item">
+              <span>💳 Karta:</span>
+              <strong style={{ color: "#ef4444" }}>
+                {monthlyCardExpense.toLocaleString()} UZS
+              </strong>
+            </div>
+            <div className="budget-item">
+              <span>🏦 Bank:</span>
+              <strong style={{ color: "#ef4444" }}>
+                {monthlyBankExpense.toLocaleString()} UZS
+              </strong>
+            </div>
           </div>
         </div>
         <div className="stat-card stat-budget">
