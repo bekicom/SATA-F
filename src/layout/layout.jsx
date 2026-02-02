@@ -45,7 +45,7 @@ export const Layout = memo(() => {
   };
 
   CloseModal({ modalRef: menuRef, onClose: () => setMenu(false) });
-
+// salom
   return (
     <main className="main">
       <aside className="aside">
