@@ -1,7 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   Button,
-  DatePicker,
   Modal,
   Progress,
   Card,
@@ -16,10 +15,10 @@ import {
   TimePicker,
   message,
   Popconfirm,
+  Spin,
 } from "antd";
 import {
   FaChevronLeft,
-  FaList,
   FaPlus,
   FaCheckCircle,
   FaTimesCircle,
@@ -51,17 +50,25 @@ const TeacherDavomat = () => {
   const navigate = useNavigate();
   const role = localStorage.getItem("role");
 
-  const { data: teachers = [] } = useGetTeachersQuery();
-  const { data: davomatData = [], refetch } = useGetTeacherDavomatQuery();
+  const { data: teachers = [], isLoading: teachersLoading } =
+    useGetTeachersQuery();
+  const {
+    data: davomatData = [],
+    refetch,
+    isLoading: davomatLoading,
+  } = useGetTeacherDavomatQuery();
   const [addTeacherDavomat, { isLoading }] = useAddTeacherDavomatMutation();
 
-  const today = moment().format("DD-MM-YYYY");
-  const [selectedDate, setSelectedDate] = useState(today);
+  const today = moment().format("YYYY-MM-DD");
+
+  // State management
+  const [startDate, setStartDate] = useState(today);
+  const [endDate, setEndDate] = useState(today);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [selectedTeacher, setSelectedTeacher] = useState(null);
   const [monthlyData, setMonthlyData] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState(
-    moment().format("MM-YYYY")
+    moment().format("YYYY-MM"),
   );
 
   // Qo'lda davomat olish uchun state'lar
@@ -69,90 +76,102 @@ const TeacherDavomat = () => {
   const [currentTeacher, setCurrentTeacher] = useState(null);
   const [arrivalTime, setArrivalTime] = useState(null);
   const [leaveTime, setLeaveTime] = useState(null);
-  const [attendanceType, setAttendanceType] = useState(""); // "arrive" yoki "leave"
+  const [attendanceType, setAttendanceType] = useState("");
 
-  // ✅ Sana formatini standartlashtirish (YYYY-MM-DD)
+  // Sana formatini standartlashtirish
   const normalizeDate = (date) => {
     return moment(date, ["YYYY-MM-DD", "DD-MM-YYYY", moment.ISO_8601]).format(
-      "YYYY-MM-DD"
+      "YYYY-MM-DD",
     );
   };
 
-  const handleDateChange = (date, dateString) => {
-    setSelectedDate(dateString || today);
-  };
-
+  // O'qituvchi ismini olish
   const getTeacherName = (id) => {
     const teacher = teachers.find((t) => t._id === id);
-    return teacher ? `${teacher.firstName} ${teacher.lastName}` : "Nomalum";
+    return teacher ? `${teacher.firstName} ${teacher.lastName}` : "Noma'lum";
   };
 
-  // ✅ O'qituvchi entry topish (sana formatiga barqaror)
-  const findTeacherEntry = (teacherId, date) => {
-    const normalizedDate = normalizeDate(date);
+  // O'qituvchi entry topish - optimized with useMemo
+  const findTeacherEntry = useMemo(() => {
+    return (teacherId, date) => {
+      const normalizedDate = normalizeDate(date);
 
-    const attendanceDoc = davomatData.find(
-      (doc) =>
-        normalizeDate(doc.date) === normalizedDate &&
-        Array.isArray(doc.body) &&
-        doc.body.some(
-          (b) =>
-            b &&
-            b.teacher_id &&
-            String(b.teacher_id._id || b.teacher_id) === String(teacherId)
-        )
-    );
+      const attendanceDoc = davomatData.find(
+        (doc) =>
+          normalizeDate(doc.date) === normalizedDate &&
+          Array.isArray(doc.body) &&
+          doc.body.some(
+            (b) =>
+              b &&
+              b.teacher_id &&
+              String(b.teacher_id._id || b.teacher_id) === String(teacherId),
+          ),
+      );
 
-    if (!attendanceDoc) return null;
+      if (!attendanceDoc) return null;
 
-    return attendanceDoc.body.find(
-      (b) =>
-        b &&
-        b.teacher_id &&
-        String(b.teacher_id._id || b.teacher_id) === String(teacherId)
-    );
-  };
+      return attendanceDoc.body.find(
+        (b) =>
+          b &&
+          b.teacher_id &&
+          String(b.teacher_id._id || b.teacher_id) === String(teacherId),
+      );
+    };
+  }, [davomatData]);
 
-  // ✅ Holatni chiqarish
+  // Status olish
   const getStatus = (teacherId, date) => {
     const entry = findTeacherEntry(teacherId, date);
-    if (!entry) return "Kelmadi";
-    return entry.status?.toLowerCase() === "keldi" ? "Keldi" : "Kelmadi";
+    if (!entry) return "Belgilanmagan";
+
+    // Agar entry mavjud bo'lsa va kelish vaqti bo'lsa - "Keldi"
+    if (entry.status?.toLowerCase() === "keldi" || entry.time) {
+      return "Keldi";
+    }
+
+    // Agar kelmadi deb belgilangan bo'lsa
+    if (entry.status?.toLowerCase() === "kelmadi") {
+      return "Kelmadi";
+    }
+
+    return "Belgilanmagan";
   };
 
   const getArrivedTime = (teacherId) => {
-    const entry = findTeacherEntry(teacherId, selectedDate);
+    const entry = findTeacherEntry(teacherId, startDate);
     return entry?.time || "-";
   };
 
   const getQuittedTime = (teacherId) => {
-    const entry = findTeacherEntry(teacherId, selectedDate);
+    const entry = findTeacherEntry(teacherId, startDate);
     return entry?.quittedTime || "-";
   };
 
-  // Qo'lda davomat belgilash funksiyasi
-  const handleMarkAttendance = async (teacher, type) => {
+  // Qo'lda davomat belgilash
+  const handleMarkAttendance = (teacher, type) => {
     setCurrentTeacher(teacher);
     setAttendanceType(type);
 
-    // Joriy vaqtni default qilib qo'yish
     const currentTime = moment();
+
     if (type === "arrive") {
       setArrivalTime(currentTime);
       setLeaveTime(null);
     } else {
       setLeaveTime(currentTime);
-      // Kelgan vaqtni oldin belgilangan vaqtdan olish
-      const existingEntry = findTeacherEntry(teacher._id, selectedDate);
-      if (existingEntry && existingEntry.time) {
+      const existingEntry = findTeacherEntry(teacher._id, startDate);
+      if (existingEntry?.time) {
         setArrivalTime(moment(existingEntry.time, "HH:mm"));
+      } else {
+        message.warning("Avval kelish vaqtini belgilang!");
+        return;
       }
     }
 
     setAttendanceModal(true);
   };
 
-  // Davomatni saqlash - mavjud API formatiga moslashtirish
+  // Davomatni saqlash
   const saveAttendance = async () => {
     if (!currentTeacher || !arrivalTime) {
       message.error("O'qituvchi va kelish vaqti majburiy!");
@@ -160,18 +179,23 @@ const TeacherDavomat = () => {
     }
 
     try {
-      // Mavjud API formatiga mos ma'lumot tayyorlash
       const attendanceData = {
         employeeNo: currentTeacher.employeeNo,
-        davomatDate: normalizeDate(selectedDate),
-        status: "keldi",
+        davomatDate: normalizeDate(startDate),
+        status: "keldi", // Har doim "keldi" status beriladi
         time: arrivalTime.format("HH:mm"),
-        quittedTime: leaveTime ? leaveTime.format("HH:mm") : undefined,
       };
 
+      // Ketish vaqti mavjud bo'lsa qo'shiladi, lekin status "keldi" bo'lib qoladi
+      if (leaveTime && attendanceType === "leave") {
+        attendanceData.quittedTime = leaveTime.format("HH:mm");
+      }
+
       await addTeacherDavomat(attendanceData).unwrap();
+
+      const actionText = attendanceType === "arrive" ? "kelish" : "ketish";
       message.success(
-        `${currentTeacher.firstName} ${currentTeacher.lastName} ning davomati belgilandi`
+        `${currentTeacher.firstName} ${currentTeacher.lastName} ning ${actionText} vaqti belgilandi`,
       );
 
       setAttendanceModal(false);
@@ -180,11 +204,12 @@ const TeacherDavomat = () => {
       setLeaveTime(null);
       setAttendanceType("");
 
-      // Ma'lumotlarni yangilash
-      refetch();
+      await refetch();
     } catch (error) {
       console.error("Davomat belgilashda xatolik:", error);
-      message.error("Davomat belgilashda xatolik yuz berdi!");
+      message.error(
+        error?.data?.message || "Davomat belgilashda xatolik yuz berdi!",
+      );
     }
   };
 
@@ -193,30 +218,31 @@ const TeacherDavomat = () => {
     try {
       const attendanceData = {
         employeeNo: teacher.employeeNo,
-        davomatDate: normalizeDate(selectedDate),
+        davomatDate: normalizeDate(startDate),
         status: "kelmadi",
       };
 
       await addTeacherDavomat(attendanceData).unwrap();
+
       message.success(
-        `${teacher.firstName} ${teacher.lastName} kelmagan deb belgilandi`
+        `${teacher.firstName} ${teacher.lastName} kelmagan deb belgilandi`,
       );
-      refetch();
+
+      await refetch();
     } catch (error) {
       console.error("Davomat belgilashda xatolik:", error);
-      message.error("Davomat belgilashda xatolik yuz berdi!");
+      message.error(error?.data?.message || "Xatolik yuz berdi!");
     }
   };
 
-  // ✅ Oylik hisobot hisoblash - zamonaviy versiya
+  // Oylik hisobot
   const getTeacherMonthlyStatus = (teacherId, monthString) => {
     if (!monthString) return;
-    const [month, year] = monthString.split("-").map(Number);
+
+    const [year, month] = monthString.split("-").map(Number);
     const daysInMonth = moment(`${year}-${month}`, "YYYY-MM").daysInMonth();
 
     const result = [];
-
-    // O'zbekcha kun nomlari
     const uzbekDays = {
       Sunday: "Yakshanba",
       Monday: "Dushanba",
@@ -229,55 +255,71 @@ const TeacherDavomat = () => {
 
     for (let day = 1; day <= daysInMonth; day++) {
       const currentDate = moment(`${year}-${month}-${day}`, "YYYY-MM-DD");
-      const formattedDate = currentDate.format("DD-MM-YYYY");
+      const formattedDate = currentDate.format("YYYY-MM-DD");
 
       const entry = findTeacherEntry(teacherId, formattedDate);
 
-      let status = "kelmadi";
+      let status = "none";
       let time = "-";
       let quittedTime = "-";
 
       if (entry) {
+        // Agar kelish vaqti bo'lsa yoki status "keldi" bo'lsa - kelgan deb hisoblanadi
         if (entry.status?.toLowerCase() === "keldi" || entry.time) {
           status = "keldi";
+        } else if (entry.status?.toLowerCase() === "kelmadi") {
+          status = "kelmadi";
         }
-        time = entry.time || time;
-        quittedTime = entry.quittedTime || quittedTime;
+        time = entry.time || "-";
+        quittedTime = entry.quittedTime || "-";
       }
 
       result.push({
         key: formattedDate,
-        date: formattedDate,
+        date: currentDate.format("DD-MM-YYYY"),
         day: uzbekDays[currentDate.format("dddd")],
         dayNumber: day,
         status,
         time,
         quittedTime,
-        isWeekend: currentDate.day() === 0, // faqat Yakshanba dam olish kuni
-        // Yakshanba va Shanba
+        isWeekend: currentDate.day() === 0,
       });
     }
+
     setMonthlyData(result);
   };
 
-  // Statistikalarni hisoblash
-  const getStatistics = () => {
-    const totalDays = monthlyData.filter((d) => !d.isWeekend).length;
-    const presentDays = monthlyData.filter(
-      (d) => d.status === "keldi" && !d.isWeekend
-    ).length;
+  // Statistika - optimized with useMemo
+  const getStatistics = useMemo(() => {
+    const workingDays = monthlyData.filter((d) => !d.isWeekend);
+    const totalDays = workingDays.length;
+    const presentDays = workingDays.filter((d) => d.status === "keldi").length;
     const absentDays = totalDays - presentDays;
     const attendanceRate =
       totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0;
 
     return { totalDays, presentDays, absentDays, attendanceRate };
-  };
+  }, [monthlyData]);
 
-  const stats = getStatistics();
+  // Loading state
+  if (teachersLoading || davomatLoading) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "400px",
+        }}
+      >
+        <Spin size="large" tip="Yuklanmoqda..." />
+      </div>
+    );
+  }
 
   return (
     <div className="page">
-      {/* 🆕 Qo'lda davomat modal */}
+      {/* Qo'lda davomat modal */}
       <Modal
         title={
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -300,7 +342,16 @@ const TeacherDavomat = () => {
           setAttendanceType("");
         }}
         footer={[
-          <Button key="cancel" onClick={() => setAttendanceModal(false)}>
+          <Button
+            key="cancel"
+            onClick={() => {
+              setAttendanceModal(false);
+              setCurrentTeacher(null);
+              setArrivalTime(null);
+              setLeaveTime(null);
+              setAttendanceType("");
+            }}
+          >
             Bekor qilish
           </Button>,
           <Button
@@ -319,13 +370,15 @@ const TeacherDavomat = () => {
             <div style={{ marginBottom: "20px", textAlign: "center" }}>
               <Avatar
                 size={64}
-                style={{ background: "#f56a00", marginBottom: "12px" }}
-                icon={<FaUser />}
+                style={{ background: "#1890ff", marginBottom: "12px" }}
+                icon={<FaGraduationCap />}
               />
               <Title level={4} style={{ margin: 0 }}>
                 {currentTeacher.firstName} {currentTeacher.lastName}
               </Title>
-              <Text type="secondary">Sana: {selectedDate}</Text>
+              <Text type="secondary">
+                Sana: {moment(startDate).format("DD-MM-YYYY")}
+              </Text>
             </div>
 
             <Row gutter={16}>
@@ -349,7 +402,8 @@ const TeacherDavomat = () => {
                     format="HH:mm"
                     value={leaveTime}
                     onChange={setLeaveTime}
-                    placeholder="Ketish vaqtini tanlang (ixtiyoriy)"
+                    placeholder="Ketish vaqtini tanlang"
+                    disabled={attendanceType === "arrive"}
                   />
                 </div>
               </Col>
@@ -357,10 +411,10 @@ const TeacherDavomat = () => {
 
             <div
               style={{
-                background: "#f6ffed",
+                background: "#e6f7ff",
                 padding: "12px",
                 borderRadius: "6px",
-                border: "1px solid #b7eb8f",
+                border: "1px solid #91d5ff",
               }}
             >
               <Text type="secondary" style={{ fontSize: "13px" }}>
@@ -372,17 +426,19 @@ const TeacherDavomat = () => {
         )}
       </Modal>
 
-      {/* 📊 Zamonaviy O'qituvchi Oylik Hisobot Modal */}
+      {/* Oylik hisobot modal */}
       <Modal
         open={isModalVisible}
         title={null}
-        onCancel={() => setIsModalVisible(false)}
+        onCancel={() => {
+          setIsModalVisible(false);
+          setMonthlyData([]);
+        }}
         footer={null}
         width={1000}
         bodyStyle={{ padding: 0 }}
         style={{ top: 20 }}
       >
-        {/* Modal Header - O'qituvchi uchun maxsus */}
         <div
           style={{
             background: "linear-gradient(135deg, #4facfe 0%, #52c41a 100%)",
@@ -411,26 +467,26 @@ const TeacherDavomat = () => {
           </div>
         </div>
 
-        {/* Modal Body */}
         <div style={{ padding: "24px" }}>
-          {/* Oy tanlash va statistika */}
           <Row gutter={[16, 16]} style={{ marginBottom: "24px" }}>
             <Col span={8}>
               <Card size="small">
-                <DatePicker
-                  picker="month"
-                  format="MMMM YYYY"
-                  style={{ width: "100%" }}
-                  placeholder="Oyni tanlang"
-                  onChange={(date, dateString) => {
-                    const formattedMonth = moment(date).format("MM-YYYY");
-                    setSelectedMonth(formattedMonth);
-                    getTeacherMonthlyStatus(
-                      selectedTeacher._id,
-                      formattedMonth
-                    );
+                <input
+                  type="month"
+                  value={selectedMonth}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setSelectedMonth(value);
+                    getTeacherMonthlyStatus(selectedTeacher._id, value);
                   }}
-                  defaultValue={moment()}
+                  style={{
+                    width: "100%",
+                    padding: "8px",
+                    fontSize: "14px",
+                    border: "1px solid #d9d9d9",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                  }}
                 />
               </Card>
             </Col>
@@ -440,7 +496,7 @@ const TeacherDavomat = () => {
                   <Card size="small">
                     <Statistic
                       title="Jami kunlar"
-                      value={stats.totalDays}
+                      value={getStatistics.totalDays}
                       prefix={<FaCalendarAlt style={{ color: "#1890ff" }} />}
                     />
                   </Card>
@@ -449,7 +505,7 @@ const TeacherDavomat = () => {
                   <Card size="small">
                     <Statistic
                       title="Ishga kelgan"
-                      value={stats.presentDays}
+                      value={getStatistics.presentDays}
                       prefix={<FaCheckCircle style={{ color: "#52c41a" }} />}
                       valueStyle={{ color: "#52c41a" }}
                     />
@@ -459,7 +515,7 @@ const TeacherDavomat = () => {
                   <Card size="small">
                     <Statistic
                       title="Kelmagan"
-                      value={stats.absentDays}
+                      value={getStatistics.absentDays}
                       prefix={<FaTimesCircle style={{ color: "#f5222d" }} />}
                       valueStyle={{ color: "#f5222d" }}
                     />
@@ -471,11 +527,8 @@ const TeacherDavomat = () => {
                       <Progress
                         type="circle"
                         size={60}
-                        percent={stats.attendanceRate}
-                        strokeColor={{
-                          "0%": "#4facfe",
-                          "100%": "#f5576c",
-                        }}
+                        percent={getStatistics.attendanceRate}
+                        strokeColor={{ "0%": "#4facfe", "100%": "#52c41a" }}
                       />
                       <div
                         style={{
@@ -495,9 +548,8 @@ const TeacherDavomat = () => {
 
           <Divider />
 
-          {/* Kalendar ko'rinishida jadval */}
           <Title level={4} style={{ marginBottom: "16px" }}>
-            <IoStatsChart style={{ marginRight: "8px", color: "#f5576c" }} />
+            <IoStatsChart style={{ marginRight: "8px", color: "#1890ff" }} />
             Oylik Ish Davomat Kalendari
           </Title>
 
@@ -529,7 +581,6 @@ const TeacherDavomat = () => {
                     style={{
                       padding: "12px 8px",
                       borderBottom: "2px solid #e8e8e8",
-                      fontWeight: 600,
                       textAlign: "left",
                     }}
                   >
@@ -539,7 +590,6 @@ const TeacherDavomat = () => {
                     style={{
                       padding: "12px 8px",
                       borderBottom: "2px solid #e8e8e8",
-                      fontWeight: 600,
                       textAlign: "center",
                     }}
                   >
@@ -549,7 +599,6 @@ const TeacherDavomat = () => {
                     style={{
                       padding: "12px 8px",
                       borderBottom: "2px solid #e8e8e8",
-                      fontWeight: 600,
                       textAlign: "center",
                     }}
                   >
@@ -560,7 +609,6 @@ const TeacherDavomat = () => {
                     style={{
                       padding: "12px 8px",
                       borderBottom: "2px solid #e8e8e8",
-                      fontWeight: 600,
                       textAlign: "center",
                     }}
                   >
@@ -571,7 +619,6 @@ const TeacherDavomat = () => {
                     style={{
                       padding: "12px 8px",
                       borderBottom: "2px solid #e8e8e8",
-                      fontWeight: 600,
                       textAlign: "center",
                     }}
                   >
@@ -584,23 +631,28 @@ const TeacherDavomat = () => {
                   <tr
                     key={item.key}
                     style={{
-                      backgroundColor: index % 2 === 0 ? "#fafafa" : "white",
-                      opacity: item.isWeekend ? 0.6 : 1,
+                      backgroundColor: item.isWeekend
+                        ? "#fff7e6"
+                        : index % 2 === 0
+                          ? "#fafafa"
+                          : "white",
                       transition: "all 0.2s ease",
                     }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = "#fff2f0";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor =
-                        index % 2 === 0 ? "#fafafa" : "white";
-                    }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.backgroundColor = "#e6f7ff")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.backgroundColor = item.isWeekend
+                        ? "#fff7e6"
+                        : index % 2 === 0
+                          ? "#fafafa"
+                          : "white")
+                    }
                   >
                     <td
                       style={{
                         padding: "12px 8px",
                         borderBottom: "1px solid #f0f0f0",
-                        fontWeight: item.isWeekend ? "normal" : "500",
                       }}
                     >
                       {item.date}
@@ -610,17 +662,12 @@ const TeacherDavomat = () => {
                         padding: "12px 8px",
                         borderBottom: "1px solid #f0f0f0",
                         textAlign: "center",
-                        color: item.isWeekend ? "#999" : "#333",
                       }}
                     >
                       {item.isWeekend ? (
-                        <Tag color="orange" size="small">
-                          {item.day}
-                        </Tag>
+                        <Tag color="orange">{item.day}</Tag>
                       ) : (
-                        <Tag color="purple" size="small">
-                          {item.day}
-                        </Tag>
+                        <Tag color="purple">{item.day}</Tag>
                       )}
                     </td>
                     <td
@@ -628,7 +675,6 @@ const TeacherDavomat = () => {
                         padding: "12px 8px",
                         borderBottom: "1px solid #f0f0f0",
                         textAlign: "center",
-                        fontFamily: "monospace",
                       }}
                     >
                       {item.time !== "-" ? (
@@ -645,7 +691,6 @@ const TeacherDavomat = () => {
                         padding: "12px 8px",
                         borderBottom: "1px solid #f0f0f0",
                         textAlign: "center",
-                        fontFamily: "monospace",
                       }}
                     >
                       {item.quittedTime !== "-" ? (
@@ -665,19 +710,19 @@ const TeacherDavomat = () => {
                       }}
                     >
                       {item.isWeekend ? (
-                        <Tag color="default" size="small">
-                          Dam olish
-                        </Tag>
+                        <Tag color="default">Dam olish</Tag>
                       ) : item.status === "keldi" ? (
-                        <Tag color="success" size="small">
+                        <Tag color="success">
                           <FaCheckCircle style={{ marginRight: "4px" }} />
-                          Ishga kelgan
+                          Kelgan
                         </Tag>
-                      ) : (
-                        <Tag color="error" size="small">
+                      ) : item.status === "kelmadi" ? (
+                        <Tag color="error">
                           <FaTimesCircle style={{ marginRight: "4px" }} />
                           Kelmagan
                         </Tag>
+                      ) : (
+                        <Tag color="default">Belgilanmagan</Tag>
                       )}
                     </td>
                   </tr>
@@ -686,20 +731,19 @@ const TeacherDavomat = () => {
             </table>
           </div>
 
-          {/* Footer statistika */}
           <div
             style={{
               marginTop: "20px",
               padding: "16px",
-              background: "#fff2f0",
+              background: "#f8f9fa",
               borderRadius: "8px",
               textAlign: "center",
             }}
           >
             <Space size="large">
               <div>
-                <Text strong style={{ color: "#f5576c", fontSize: "18px" }}>
-                  {stats.attendanceRate}%
+                <Text strong style={{ color: "#52c41a", fontSize: "18px" }}>
+                  {getStatistics.attendanceRate}%
                 </Text>
                 <div style={{ fontSize: "12px", color: "#666" }}>
                   Ish davomati
@@ -707,8 +751,8 @@ const TeacherDavomat = () => {
               </div>
               <Divider type="vertical" style={{ height: "40px" }} />
               <div>
-                <Text strong style={{ color: "#52c41a", fontSize: "16px" }}>
-                  {stats.presentDays}/{stats.totalDays}
+                <Text strong style={{ color: "#1890ff", fontSize: "16px" }}>
+                  {getStatistics.presentDays}/{getStatistics.totalDays}
                 </Text>
                 <div style={{ fontSize: "12px", color: "#666" }}>
                   Ishga kelgan kunlar
@@ -717,7 +761,7 @@ const TeacherDavomat = () => {
               <Divider type="vertical" style={{ height: "40px" }} />
               <div>
                 <Text strong style={{ color: "#f5222d", fontSize: "16px" }}>
-                  {stats.absentDays}
+                  {getStatistics.absentDays}
                 </Text>
                 <div style={{ fontSize: "12px", color: "#666" }}>
                   Kelmagan kunlar
@@ -728,21 +772,59 @@ const TeacherDavomat = () => {
         </div>
       </Modal>
 
-      {/* 📌 Header */}
+      {/* Header */}
       <div className="page-header">
-        <h1>O'qituvchilar davomati</h1>
-        <div className="log-header">
-          <DatePicker
-            format="DD-MM-YYYY"
-            onChange={handleDateChange}
-            placeholder="Sana"
-          />
+        <h1>
+          <FaGraduationCap style={{ marginRight: "12px" }} />
+          O'qituvchilar davomati
+        </h1>
+        <div
+          className="log-header"
+          style={{ display: "flex", gap: "12px", alignItems: "center" }}
+        >
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <label style={{ fontSize: "14px", fontWeight: "500" }}>Dan:</label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              style={{
+                padding: "6px 12px",
+                fontSize: "14px",
+                border: "1px solid #d9d9d9",
+                borderRadius: "4px",
+                cursor: "pointer",
+              }}
+            />
+
+            <label
+              style={{ fontSize: "14px", fontWeight: "500", marginLeft: "8px" }}
+            >
+              Gacha:
+            </label>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              min={startDate}
+              style={{
+                padding: "6px 12px",
+                fontSize: "14px",
+                border: "1px solid #d9d9d9",
+                borderRadius: "4px",
+                cursor: "pointer",
+              }}
+            />
+          </div>
+
           <Button type="primary" onClick={() => navigate(-1)}>
-            <FaChevronLeft />
+            <FaChevronLeft /> Orqaga
           </Button>
+
           <Button type="primary" onClick={() => navigate("handle")}>
-            <FaPlus />
+            <FaPlus /> Qo'shish
           </Button>
+
           {role === "teacher" && (
             <Button
               danger
@@ -752,13 +834,13 @@ const TeacherDavomat = () => {
                 window.location.href = "/";
               }}
             >
-              <FiLogOut />
+              <FiLogOut /> Chiqish
             </Button>
           )}
         </div>
       </div>
 
-      {/* 📋 Asosiy jadval */}
+      {/* Asosiy jadval */}
       <Table>
         <thead>
           <tr>
@@ -767,86 +849,151 @@ const TeacherDavomat = () => {
             <td>Sana</td>
             <td>Kelish vaqti</td>
             <td>Ketish vaqti</td>
+            <td>Holat</td>
             <td>Amallar</td>
             <td>Hisobot</td>
           </tr>
         </thead>
         <tbody>
-          {teachers.map((teacher, index) => {
-            const status = getStatus(teacher._id, selectedDate);
-            const arrivedTime = getArrivedTime(teacher._id);
-            const quittedTime = getQuittedTime(teacher._id);
+          {teachers.length === 0 ? (
+            <tr>
+              <td colSpan="8" style={{ textAlign: "center", padding: "40px" }}>
+                <Text type="secondary">Ma'lumot topilmadi</Text>
+              </td>
+            </tr>
+          ) : (
+            teachers.map((teacher, index) => {
+              const status = getStatus(teacher._id, startDate);
+              const arrivedTime = getArrivedTime(teacher._id);
+              const quittedTime = getQuittedTime(teacher._id);
 
-            return (
-              <tr key={teacher._id}>
-                <td>{index + 1}</td>
-                <td>{getTeacherName(teacher._id)}</td>
-                <td>{selectedDate}</td>
-                <td>{arrivedTime}</td>
-                <td>{quittedTime}</td>
+              const tagConfig = {
+                Keldi: { color: "success", icon: <FaCheckCircle /> },
+                Kelmadi: { color: "error", icon: <FaTimesCircle /> },
+                Belgilanmagan: { color: "default", icon: null },
+              };
 
-                <td>
-                  <Space size="small">
-                    {/* Ishga kelish tugmasi */}
+              const { color: tagColor, icon: tagIcon } =
+                tagConfig[status] || tagConfig["Belgilanmagan"];
+
+              return (
+                <tr key={teacher._id}>
+                  <td>{index + 1}</td>
+                  <td>
+                    <Space>
+                      <Avatar
+                        size="small"
+                        style={{ background: "#1890ff" }}
+                        icon={<FaGraduationCap />}
+                      />
+                      {getTeacherName(teacher._id)}
+                    </Space>
+                  </td>
+                  <td>{moment(startDate).format("DD-MM-YYYY")}</td>
+                  <td>
+                    {arrivedTime !== "-" ? (
+                      <Tag color="green" style={{ fontFamily: "monospace" }}>
+                        <FaClock style={{ marginRight: "4px" }} />
+                        {arrivedTime}
+                      </Tag>
+                    ) : (
+                      <span style={{ color: "#ccc" }}>-</span>
+                    )}
+                  </td>
+                  <td>
+                    {quittedTime !== "-" ? (
+                      <Tag color="orange" style={{ fontFamily: "monospace" }}>
+                        <FaClock style={{ marginRight: "4px" }} />
+                        {quittedTime}
+                      </Tag>
+                    ) : (
+                      <span style={{ color: "#ccc" }}>-</span>
+                    )}
+                  </td>
+                  <td>
+                    <Tag color={tagColor} icon={tagIcon}>
+                      {status}
+                    </Tag>
+                  </td>
+                  <td>
+                    <Space size="small">
+                      <Button
+                        type="primary"
+                        size="small"
+                        icon={<MdLogin />}
+                        onClick={() => handleMarkAttendance(teacher, "arrive")}
+                        style={{
+                          background: "#52c41a",
+                          borderColor: "#52c41a",
+                        }}
+                        disabled={arrivedTime !== "-" || status === "Kelmadi"}
+                      >
+                        Keldi
+                      </Button>
+
+                      <Button
+                        type="primary"
+                        size="small"
+                        icon={<MdLogout />}
+                        onClick={() => handleMarkAttendance(teacher, "leave")}
+                        style={{
+                          background: "#ff7a00",
+                          borderColor: "#ff7a00",
+                        }}
+                        disabled={
+                          arrivedTime === "-" ||
+                          quittedTime !== "-" ||
+                          status === "Kelmadi"
+                        }
+                      >
+                        Ketdi
+                      </Button>
+
+                      <Popconfirm
+                        title="Kelmagan deb belgilash"
+                        description="O'qituvchini kelmagan deb belgilaysizmi?"
+                        onConfirm={() => markAsAbsent(teacher)}
+                        okText="Ha"
+                        cancelText="Yo'q"
+                        okButtonProps={{ danger: true }}
+                      >
+                        <Button
+                          danger
+                          size="small"
+                          icon={<FaTimesCircle />}
+                          disabled={status === "Kelmadi" || arrivedTime !== "-"}
+                        >
+                          Kelmadi
+                        </Button>
+                      </Popconfirm>
+                    </Space>
+                  </td>
+                  <td>
                     <Button
                       type="primary"
+                      icon={<FaChartLine />}
                       size="small"
-                      icon={<MdLogin />}
-                      onClick={() => handleMarkAttendance(teacher, "arrive")}
-                      style={{
-                        background: "#52c41a",
-                        borderColor: "#52c41a",
-                        fontSize: "12px",
-                        color: "black",
+                      onClick={() => {
+                        setSelectedTeacher(teacher);
+                        const currentMonth = moment().format("YYYY-MM");
+                        setSelectedMonth(currentMonth);
+                        getTeacherMonthlyStatus(teacher._id, currentMonth);
+                        setIsModalVisible(true);
                       }}
-                      disabled={arrivedTime !== "-"}
-                    >
-                      Keldi
-                    </Button>
-
-                    {/* Ishdan ketish tugmasi */}
-                    <Button
-                      type="primary"
-                      size="small"
-                      icon={<MdLogout />}
-                      onClick={() => handleMarkAttendance(teacher, "leave")}
                       style={{
-                        background: "#ff7a00",
-                        borderColor: "#ff7a00",
-                        fontSize: "12px",
-                        color: "black",
+                        background:
+                          "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                        border: "none",
+                        minWidth: "100px",
                       }}
-                      disabled={arrivedTime === "-" || quittedTime !== "-"}
                     >
-                      Ketdi
+                      Hisobot
                     </Button>
-                  </Space>
-                </td>
-                <td>
-                  <Button
-                    type="primary"
-                    icon={<FaChartLine />}
-                    size="small"
-                    onClick={() => {
-                      setSelectedTeacher(teacher);
-                      const currentMonth = moment().format("MM-YYYY");
-                      setSelectedMonth(currentMonth);
-                      getTeacherMonthlyStatus(teacher._id, currentMonth);
-                      setIsModalVisible(true);
-                    }}
-                    style={{
-                      background: "#722ed1",
-                      borderColor: "#722ed1",
-                      width: "120px",
-                      height: "34px",
-                    }}
-                  >
-                    Hisobot
-                  </Button>
-                </td>
-              </tr>
-            );
-          })}
+                  </td>
+                </tr>
+              );
+            })
+          )}
         </tbody>
       </Table>
     </div>
