@@ -140,7 +140,7 @@ export const Layout = memo(() => {
           </li>
           <li>
             <NavLink
-              to="/payment"
+              to="/payment/log"
               className={({ isActive }) => (isActive ? "active" : "")}
             >
               <MdOutlineAttachMoney />

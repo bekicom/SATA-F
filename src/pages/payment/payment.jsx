@@ -10,12 +10,29 @@ import { useNavigate } from "react-router-dom";
 
 const { Search } = Input;
 const { Option } = Select;
+const { RangePicker } = DatePicker;
+
+const monthName = (month) => {
+  const months = {
+    "01": "Yanvar",
+    "02": "Fevral",
+    "03": "Mart",
+    "04": "Aprel",
+    "05": "May",
+    "06": "Iyun",
+    "07": "Iyul",
+    "08": "Avgust",
+    "09": "Sentabr",
+    10: "Oktabr",
+    11: "Noyabr",
+    12: "Dekabr",
+  };
+  return months[month] || "Noma'lum oy";
+};
 
 export const Payment = () => {
   const { data: payments = [], isLoading, isFetching } = useGetPaymentQuery();
-
   const { data: groupData = [] } = useGetClassQuery();
-
   const navigate = useNavigate();
 
   const currentMonth = moment().format("MM-YYYY");
@@ -24,8 +41,8 @@ export const Payment = () => {
   const [viewType, setViewType] = useState("monthly");
   const [selectedClass, setSelectedClass] = useState(null);
   const [searchValue, setSearchValue] = useState("");
+  const [dateRange, setDateRange] = useState(null); // ✅ dan-gacha filter
 
-  // 🔥 Fast group lookup
   const groupMap = useMemo(() => {
     const map = {};
     groupData.forEach((g) => {
@@ -34,49 +51,55 @@ export const Payment = () => {
     return map;
   }, [groupData]);
 
-  // 🔥 FILTER
   const filteredPayments = useMemo(() => {
     if (!Array.isArray(payments)) return [];
-
     const todayDate = moment().format("YYYY-MM-DD");
 
     return payments.filter((item) => {
       if (!item) return false;
 
-      // Class filter
-      if (selectedClass && item.user_groupId !== selectedClass) {
-        return false;
-      }
+      // Sinf filter
+      if (selectedClass && item.user_groupId !== selectedClass) return false;
 
-      // Search filter
+      // Ism filter
       if (
         searchValue &&
         !item.user_fullname?.toLowerCase().includes(searchValue.toLowerCase())
-      ) {
+      )
         return false;
-      }
 
-      // Monthly filter
-      if (viewType === "monthly") {
-        if (!selectedMonth) return true;
+      // ✅ Dan-gacha filter (createdAt bo'yicha) — range tanlangan bo'lsa
+      if (dateRange && dateRange.length === 2 && dateRange[0] && dateRange[1]) {
+        const createdAt = moment(item.createdAt);
+        const start = moment(dateRange[0]).startOf("day");
+        const end = moment(dateRange[1]).endOf("day");
+        if (!createdAt.isBetween(start, end, null, "[]")) return false;
+      } else {
+        // ✅ Range yo'q bo'lsa — oylik yoki kunlik filter
+        if (viewType === "monthly") {
+          if (!selectedMonth) return true;
+          const itemMonth = moment(item.payment_month, "MM-YYYY");
+          const selected = moment(selectedMonth, "MM-YYYY");
+          return itemMonth.isValid() && itemMonth.isSame(selected, "month");
+        }
 
-        const itemMonth = moment(item.payment_month, "MM-YYYY");
-        const selected = moment(selectedMonth, "MM-YYYY");
-
-        return itemMonth.isValid() && itemMonth.isSame(selected, "month");
-      }
-
-      // Daily filter
-      if (viewType === "daily") {
-        const paymentDate = moment(item.createdAt).format("YYYY-MM-DD");
-        return paymentDate === todayDate;
+        if (viewType === "daily") {
+          const paymentDate = moment(item.createdAt).format("YYYY-MM-DD");
+          return paymentDate === todayDate;
+        }
       }
 
       return true;
     });
-  }, [payments, selectedClass, searchValue, selectedMonth, viewType]);
+  }, [
+    payments,
+    selectedClass,
+    searchValue,
+    selectedMonth,
+    viewType,
+    dateRange,
+  ]);
 
-  // 🔥 TOTAL
   const totalPayment = useMemo(() => {
     return filteredPayments.reduce(
       (sum, item) => sum + (Number(item?.payment_quantity) || 0),
@@ -84,7 +107,6 @@ export const Payment = () => {
     );
   }, [filteredPayments]);
 
-  // 🔥 LOADING UI
   if (isLoading) {
     return (
       <div style={{ padding: 40, textAlign: "center" }}>
@@ -97,30 +119,47 @@ export const Payment = () => {
     <div className="page">
       <div className="page-header">
         <h1>To'lovlar</h1>
-
         <div className="page-header__actions">
           <Search
             placeholder="Ism bo'yicha qidiruv"
             onChange={(e) => setSearchValue(e.target.value)}
-            style={{ width: 300, marginRight: 10 }}
+            style={{ width: 250, marginRight: 10 }}
           />
 
-          <DatePicker
-            picker="month"
-            format="MM-YYYY"
-            onChange={(date, dateString) =>
-              setSelectedMonth(dateString || null)
-            }
+          {/* ✅ Dan-gacha sana filter */}
+          <RangePicker
+            format="DD-MM-YYYY"
+            onChange={(dates) => {
+              // Range tanlanса — oylik/kunlik filterni o'chirib qo'yamiz
+              setDateRange(dates ? [...dates] : null);
+            }}
+            style={{ marginRight: 10 }}
+            placeholder={["Dan", "Gacha"]}
           />
 
-          <Select
-            value={viewType}
-            style={{ width: 120, marginRight: 10 }}
-            onChange={setViewType}
-          >
-            <Option value="monthly">Oylik</Option>
-            <Option value="daily">Kunlik</Option>
-          </Select>
+          {/* ✅ Range tanlanmagan bo'lsagina oy va viewType ko'rinadi */}
+          {!dateRange && (
+            <>
+              <DatePicker
+                picker="month"
+                format="MM-YYYY"
+                defaultValue={moment(currentMonth, "MM-YYYY")}
+                onChange={(date, dateString) =>
+                  setSelectedMonth(dateString || null)
+                }
+                style={{ marginRight: 10 }}
+              />
+
+              <Select
+                value={viewType}
+                style={{ width: 120, marginRight: 10 }}
+                onChange={setViewType}
+              >
+                <Option value="monthly">Oylik</Option>
+                <Option value="daily">Kunlik</Option>
+              </Select>
+            </>
+          )}
 
           <Select
             allowClear
@@ -135,10 +174,13 @@ export const Payment = () => {
             ))}
           </Select>
 
-          <Button type="primary" onClick={() => navigate("log")}>
+          <Button
+            type="primary"
+            onClick={() => navigate("log")}
+            style={{ marginRight: 8 }}
+          >
             <FaList />
           </Button>
-
           <Button type="primary" onClick={() => navigate("create")}>
             <FaPlus />
           </Button>
@@ -162,12 +204,9 @@ export const Payment = () => {
           </thead>
           <tbody>
             {filteredPayments.map((item, index) => {
-              const uniqueKey = item?._id || `${item?.user_fullname}-${index}`;
-
               const group = groupMap[item?.user_group];
-
               return (
-                <tr key={uniqueKey}>
+                <tr key={item?._id || `${item?.user_fullname}-${index}`}>
                   <td>{index + 1}</td>
                   <td>{item?.user_fullname}</td>
                   <td>
@@ -206,24 +245,4 @@ export const Payment = () => {
       )}
     </div>
   );
-};
-
-// 🔹 Month helper
-const monthName = (month) => {
-  const months = {
-    "01": "Yanvar",
-    "02": "Fevral",
-    "03": "Mart",
-    "04": "Aprel",
-    "05": "May",
-    "06": "Iyun",
-    "07": "Iyul",
-    "08": "Avgust",
-    "09": "Sentabr",
-    10: "Oktabr",
-    11: "Noyabr",
-    12: "Dekabr",
-  };
-
-  return months[month] || "Noma'lum oy";
 };

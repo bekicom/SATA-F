@@ -1,390 +1,357 @@
-import React, { useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   useDeletePaymentMutation,
-  useEditPaymentMutation,
+  useCreatePaymentMutation,
   useGetPaymentLogQuery,
+  useCheckDebtStatusMutation,
 } from "../../context/service/payment.service";
-import moment from "moment";
 import { useGetClassQuery } from "../../context/service/class.service";
-import { Button, DatePicker, message, Modal, Select, Table } from "antd";
-import { FaChevronLeft, FaDownload } from "react-icons/fa";
+import { useGetCoinQuery } from "../../context/service/students.service";
+import moment from "moment";
+import { Button, DatePicker, message, Modal, Select, Table, Input } from "antd";
+import { FaChevronLeft, FaDownload, FaPlus } from "react-icons/fa";
+import { MdDeleteForever } from "react-icons/md";
 import { useNavigate } from "react-router-dom";
-import { MdEdit, MdDeleteForever } from "react-icons/md";
-import { useForm } from "react-hook-form";
-import dayjs from "dayjs";
-import { useGetSchoolQuery } from "../../context/service/admin.service";
 import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
+
 const { Option } = Select;
+const { RangePicker } = DatePicker;
 
 const PaymentLog = () => {
   const { data: payments = [] } = useGetPaymentLogQuery();
-  const { data: schoolData = {} } = useGetSchoolQuery();
-  const [deletePayment] = useDeletePaymentMutation();
-  const [editPayment] = useEditPaymentMutation();
   const { data: groups = [] } = useGetClassQuery();
+  const { data: students = [] } = useGetCoinQuery();
+
+  const [createPayment] = useCreatePaymentMutation();
+  const [deletePayment] = useDeletePaymentMutation();
+  const [checkDebtStatus] = useCheckDebtStatusMutation();
+
   const navigate = useNavigate();
-  const [editingPayment, setEditingPayment] = useState("");
-  const { register, handleSubmit, reset, getValues } = useForm();
-  const [editModal, setEditModal] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(
-    moment().format("YYYY-MM-DD"),
-  );
+
+  const [createModal, setCreateModal] = useState(false);
+
+  const [dateRange, setDateRange] = useState(null);
   const [selectedClass, setSelectedClass] = useState("");
 
-  const filteredPayments = payments
-    .filter((payment) => {
-      const paymentDate = moment(payment.createdAt).format("YYYY-MM-DD");
-      const paymentGroup = payment.user_group;
+  // ===== CREATE STATES =====
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [paymentMonth, setPaymentMonth] = useState("");
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentType, setPaymentType] = useState("cash");
+  const [qarzdorlik, setQarzdorlik] = useState({});
 
-      return (
-        (selectedDate ? paymentDate === selectedDate : true) &&
-        (selectedClass ? paymentGroup === selectedClass : true)
+  const getMonth = (monthNumber) => {
+    const months = {
+      "01": "Yanvar",
+      "02": "Fevral",
+      "03": "Mart",
+      "04": "Aprel",
+      "05": "May",
+      "06": "Iyun",
+      "07": "Iyul",
+      "08": "Avgust",
+      "09": "Sentabr",
+      10: "Oktabr",
+      11: "Noyabr",
+      12: "Dekabr",
+    };
+
+    return months[monthNumber] || "";
+  };
+  // ================= FILTER =================
+  const filteredPayments = useMemo(() => {
+    return payments
+      .filter((payment) => {
+        const paymentTime = new Date(payment.createdAt).getTime();
+
+        if (dateRange && dateRange.length === 2) {
+          const fromTime = new Date(dateRange[0]).setHours(0, 0, 0, 0);
+          const toTime = new Date(dateRange[1]).setHours(23, 59, 59, 999);
+          if (paymentTime < fromTime || paymentTime > toTime) return false;
+        }
+
+        if (selectedClass && payment.user_group !== selectedClass) return false;
+
+        return true;
+      })
+      .sort((a, b) =>
+        (a.user_fullname || "").localeCompare(b.user_fullname || "", "uz", {
+          sensitivity: "base",
+        }),
       );
-    })
-    .sort((a, b) =>
-      (a.user_fullname || "").localeCompare(b.user_fullname || "", "uz", {
-        sensitivity: "base",
-      }),
-    );
+  }, [payments, dateRange, selectedClass]);
 
-  async function handleDeletePayment(id) {
-    const password = prompt("Parolni kiriting");
-    if (!password) {
-      message.warning("Parolni kiritish shart!");
+  const totalAmount = useMemo(() => {
+    return filteredPayments.reduce(
+      (sum, item) => sum + (Number(item.payment_quantity) || 0),
+      0,
+    );
+  }, [filteredPayments]);
+
+  // ================= CHECK DEBT =================
+  useEffect(() => {
+    const fetchDebt = async () => {
+      if (!selectedStudent || !paymentMonth) return;
+      try {
+        const res = await checkDebtStatus({
+          studentId: selectedStudent._id,
+          paymentMonth,
+        }).unwrap();
+        setQarzdorlik(res);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    fetchDebt();
+  }, [selectedStudent, paymentMonth]);
+
+  // ================= CREATE =================
+  const handleCreatePayment = async () => {
+    if (!selectedStudent || !paymentMonth || !paymentAmount) {
+      message.error("Barcha maydonlarni to‘ldiring");
       return;
     }
 
     try {
-      await deletePayment({ id, password }).unwrap();
-      message.success("To'lov o'chirildi!");
-    } catch (error) {
-      message.error("Parol xato yoki boshqa xatolik yuz berdi!");
-    }
-  }
+      const obj = {
+        user_id: selectedStudent._id,
+        user_fullname:
+          selectedStudent.firstName + " " + selectedStudent.lastName,
+        user_group: selectedStudent.groupId,
+        payment_quantity: Number(paymentAmount),
+        payment_month: paymentMonth,
+        payment_type: paymentType,
+      };
 
-  const months = {
-    "01": "Yanvar",
-    "02": "Fevral",
-    "03": "Mart",
-    "04": "Aprel",
-    "05": "May",
-    "06": "Iyun",
-    "07": "Iyul",
-    "08": "Avgust",
-    "09": "Sentabr",
-    10: "Oktyabr",
-    11: "Noyabr",
-    12: "Dekabr",
+      await createPayment(obj).unwrap();
+
+      message.success("To'lov muvaffaqiyatli qo'shildi");
+
+      setCreateModal(false);
+      setSelectedStudent(null);
+      setPaymentAmount("");
+      setPaymentMonth("");
+    } catch {
+      message.error("Xatolik yuz berdi");
+    }
   };
 
-  function downloadExcel() {
-    const titleRow = [
-      "F.I.SH",
-      "To'lov summasi",
-      "To'lov oyi",
-      "To'lov sanasi",
-    ];
-    const data = filteredPayments;
-    const worksheetData = data.map((item) => [
-      item.user_fullname,
-      item.payment_quantity,
-      months[moment(item.payment_month, "MM-YYYY").format("MM")],
-      moment(item.createdAt).format("DD.MM.YYYY HH:mm"),
-    ]);
-    const worksheet = XLSX.utils.aoa_to_sheet([titleRow, ...worksheetData]);
-    worksheet["!cols"] = [{ wch: 20 }, { wch: 15 }, { wch: 20 }];
+  // ================= DELETE =================
+  async function handleDeletePayment(id) {
+    const password = prompt("Parolni kiriting");
+    if (!password) return;
 
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "To'lovlar");
-
-    const excelBuffer = XLSX.write(workbook, {
-      bookType: "xlsx",
-      type: "array",
-    });
-    const dataBlob = new Blob([excelBuffer], {
-      type: "application/octet-stream",
-    });
-    saveAs(dataBlob, `to'lovlar.xlsx`);
-  }
-
-  async function handleEditPayment(data) {
     try {
-      await editPayment({ body: data, id: editingPayment }).unwrap();
-      setEditModal(false);
-      message.success("To'lov tahrirlandi!");
-    } catch (error) {
-      message.error("Parol xato yoki boshqa xatolik yuz berdi!");
+      await deletePayment({ id, password }).unwrap();
+      message.success("To'lov o'chirildi!");
+    } catch {
+      message.error("Parol xato!");
     }
   }
 
+  // ================= TABLE =================
   const columns = [
     {
       title: "F.I.Sh",
       dataIndex: "user_fullname",
-      key: "user_fullname",
     },
     {
       title: "Sinf",
       dataIndex: "user_group",
-      key: "user_group",
-      render: (text) => {
-        const group = groups.find((group) => group._id === text);
-        if (!group) return text;
-        return text.length > 20 ? group.name : text;
-      },
+      render: (text) => groups.find((g) => g._id === text)?.name || text,
     },
     {
-      title: "To'lov miqdori",
+      title: "Summa",
       dataIndex: "payment_quantity",
-      key: "payment_quantity",
       render: (text) => `${text.toLocaleString()} UZS`,
-    },
-    {
-      title: "To'lov turi",
-      dataIndex: "payment_type",
-      key: "payment_type",
-      render: (text) => {
-        if (text === "card") {
-          return "Karta";
-        } else if (text === "cash") {
-          return "Naqd";
-        } else if (text === "bankshot") {
-          return "Bank orqali";
-        }
-        return text;
-      },
-    },
-    {
-      title: "To'lov oyi",
-      dataIndex: "payment_month",
-      key: "payment_month",
-      render: (text) => {
-        if (!text) return "-";
-        const [month, year] = text.split("-");
-        return `${months[month] || month} ${year}`;
-      },
     },
     {
       title: "Sana",
       dataIndex: "createdAt",
-      key: "createdAt",
       render: (text) => moment(text).format("YYYY-MM-DD HH:mm"),
     },
     {
-      title: "Amallar",
-      key: "actions",
-      render: (text, record) => (
-        <div className="actions">
-          <Button
-            onClick={() => {
-              setEditingPayment(record._id);
-              setEditModal(true);
-              reset({
-                payment_quantity: record.payment_quantity,
-                payment_type: record.payment_type,
-              });
-            }}
-            type="primary"
-          >
-            <MdEdit />
-          </Button>
-          <Button
-            onClick={() => {
-              handleDeletePayment(record._id);
-            }}
-            style={{ marginLeft: "6px" }}
-            type="primary"
-            danger
-          >
-            <MdDeleteForever />
-          </Button>
-        </div>
+      title: "O'chirish",
+      render: (_, record) => (
+        <Button danger onClick={() => handleDeletePayment(record._id)}>
+          <MdDeleteForever />
+        </Button>
       ),
     },
   ];
 
   return (
     <div className="page">
-      <Modal
-        open={editModal}
-        title="To'lovni tahrirlash"
-        footer={[]}
-        onCancel={() => {
-          setEditingPayment("");
-          setEditModal(false);
-        }}
-      >
-        <form onSubmit={handleSubmit(handleEditPayment)} className="modal_form">
-          <label htmlFor="payment_month">To'lov oyi</label>
-          <DatePicker
-            onChange={(date, dateString) =>
-              reset({ ...getValues(), payment_month: dateString })
-            }
-            format="MM-YYYY"
-            picker="month"
-            style={{ width: "100%", marginBottom: 16 }}
-            placeholder="Oyni tanlang"
-            defaultValue={
-              editingPayment
-                ? dayjs(
-                    payments.find((pt) => pt._id === editingPayment)
-                      ?.payment_month,
-                    "MM-YYYY",
-                  )
-                : null
-            }
-          />
-          <label htmlFor="payment_quantity">To'lov summasi</label>
-          <input type="number" {...register("payment_quantity")} />
-          <label htmlFor="payment_type">To'lov usuli</label>
-          <select {...register("payment_type")}>
-            <option value="card">Karta</option>
-            <option value="cash">Naqd</option>
-            <option value="bankshot">Bank orqali</option>
-          </select>
-          <input
-            type="password"
-            {...register("password")}
-            placeholder="Parolni kiriting"
-          />
-          <button>Tahrirlash</button>
-        </form>
-      </Modal>
-
       <div className="page-header">
         <h1>To'lov jurnali</h1>
 
-        <div
-          className="header_actions"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "12px",
-          }}
-        >
-          {/* ✅ ODDIY REACT INPUT BILAN SANA FILTERI */}
-          <div style={{ position: "relative" }}>
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              placeholder="Sana bo'yicha"
-              style={{
-                width: "180px",
-                padding: "8px 22px",
-                border: "1px solid #d9d9d9",
-                borderRadius: "6px",
-                fontSize: "14px",
-                marginRight: "10px",
-              }}
-            />
-            {selectedDate && (
-              <button
-                onClick={() => setSelectedDate("")}
-                style={{
-                  position: "absolute",
-                  right: "18px",
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  color: "#999",
-                  fontSize: "16px",
-                }}
-              >
-                ×
-              </button>
-            )}
-          </div>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <RangePicker
+            onChange={(dates) => setDateRange(dates)}
+            format="YYYY-MM-DD"
+          />
 
-          {/* ✅ SINIF FILTERI */}
           <Select
-            onChange={(value) => setSelectedClass(value)}
+            placeholder="Sinf"
             style={{ width: 180 }}
-            placeholder="Sinf bo'yicha"
             value={selectedClass}
             allowClear
-            onClear={() => setSelectedClass("")}
+            onChange={(val) => setSelectedClass(val)}
           >
-            <Option value="">Barcha sinf</Option>
-            {groups.map((group) => (
-              <Option key={group._id} value={group._id}>
-                {group.name}
+            {groups.map((g) => (
+              <Option key={g._id} value={g._id}>
+                {g.name}
               </Option>
             ))}
           </Select>
 
-          {/* ✅ FILTRLARNI TOZALASH TUGMASI */}
           <Button
-            onClick={() => {
-              setSelectedDate("");
-              setSelectedClass("");
-            }}
-            style={{ marginLeft: "8px" }}
+            type="primary"
+            icon={<FaPlus />}
+            onClick={() => setCreateModal(true)}
           >
-            Filtrlarni tozalash
+            To'lov qo'shish
           </Button>
 
           <Button onClick={() => navigate(-1)}>
             <FaChevronLeft />
           </Button>
-
-          <Button
-            icon={<FaDownload />}
-            onClick={downloadExcel}
-            type="primary"
-            style={{ background: "#52c41a", borderColor: "#52c41a" }}
-          >
-            Excel yuklash
-          </Button>
         </div>
       </div>
 
-      {/* ✅ FILTRLAR HOLATINI KO'RSATISH */}
       <div
         style={{
+          marginTop: 16,
           marginBottom: 16,
-          padding: "12px",
-          backgroundColor: "#f6ffed",
-          border: "1px solid #b7eb8f",
-          borderRadius: "6px",
+          padding: 14,
+          background: "#f6ffed",
+          borderRadius: 8,
+          fontWeight: 600,
         }}
       >
-        <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
-          <strong>Filtrlar:</strong>
-          <span>
-            📅 Sana: <strong>{selectedDate || "Barcha"}</strong>
-          </span>
-          <span>
-            🏫 Sinf:{" "}
-            <strong>
-              {selectedClass
-                ? groups.find((g) => g._id === selectedClass)?.name ||
-                  selectedClass
-                : "Barcha"}
-            </strong>
-          </span>
-          <span>
-            📊 Natijalar: <strong>{filteredPayments.length} ta</strong>
-          </span>
-        </div>
+        💰 Jami summa: {totalAmount.toLocaleString()} UZS
       </div>
 
-      <Table
-        columns={columns}
-        dataSource={filteredPayments}
-        rowKey="_id"
-        pagination={{
-          pageSize: 10,
-          showSizeChanger: true,
-          showQuickJumper: true,
-          showTotal: (total, range) =>
-            `${range[0]}-${range[1]} dan ${total} ta yozuv`,
-        }}
-        scroll={{ x: 800 }}
-      />
+      <Table columns={columns} dataSource={filteredPayments} rowKey="_id" />
+
+      {/* ================= CREATE MODAL ================= */}
+      <Modal
+        open={createModal}
+        title="Yangi to'lov"
+        onOk={handleCreatePayment}
+        onCancel={() => setCreateModal(false)}
+        okText="Saqlash"
+      >
+        <Select
+          showSearch
+          placeholder="O'quvchini tanlang"
+          style={{ width: "100%", marginBottom: 12 }}
+          optionFilterProp="label"
+          filterOption={(input, option) =>
+            option?.label?.toLowerCase().includes(input.toLowerCase())
+          }
+          onChange={(id) =>
+            setSelectedStudent(students.find((s) => s._id === id))
+          }
+        >
+          {students.map((s) => (
+            <Option
+              key={s._id}
+              value={s._id}
+              label={`${s.firstName} ${s.lastName}`}
+            >
+              {s.firstName} {s.lastName}
+            </Option>
+          ))}
+        </Select>
+
+        <DatePicker
+          picker="month"
+          format="MM-YYYY"
+          style={{ width: "100%", marginBottom: 12 }}
+          onChange={(date, dateString) => setPaymentMonth(dateString)}
+        />
+
+        <Input
+          placeholder="Summa"
+          value={paymentAmount}
+          onChange={(e) => setPaymentAmount(e.target.value)}
+          style={{ marginBottom: 12 }}
+        />
+
+        <Select
+          value={paymentType}
+          onChange={setPaymentType}
+          style={{ width: "100%" }}
+        >
+          <Option value="cash">Naqd</Option>
+          <Option value="card">Karta</Option>
+          <Option value="bankshot">Bank orqali</Option>
+        </Select>
+
+        {qarzdorlik?.debt && !qarzdorlik?.invalid_month && (
+          <div
+            style={{
+              marginBottom: 18,
+              padding: "18px",
+              borderRadius: "12px",
+              background: "linear-gradient(135deg, #fff1f0, #ffecec)",
+              border: "1px solid #ffccc7",
+              boxShadow: "0 4px 12px rgba(255, 77, 79, 0.15)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: "50%",
+                  background: "#ff4d4f",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "white",
+                  fontWeight: "bold",
+                  fontSize: 18,
+                }}
+              >
+                !
+              </div>
+
+              <div>
+                <div
+                  style={{ fontSize: 16, fontWeight: 600, color: "#cf1322" }}
+                >
+                  Qarzdorlik mavjud
+                </div>
+                <div style={{ fontSize: 14, color: "#8c8c8c" }}>
+                  {qarzdorlik.debt_month?.slice(3, 7)}-yil{" "}
+                  {getMonth(qarzdorlik?.debt_month?.slice(0, 2))} oyi
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                marginTop: 14,
+                padding: "12px",
+                borderRadius: "8px",
+                background: "#ffffff",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                fontWeight: 600,
+              }}
+            >
+              <span>To'lanishi kerak:</span>
+              <span style={{ fontSize: 18, color: "#ff4d4f" }}>
+                {qarzdorlik?.debt_sum?.toLocaleString()} UZS
+              </span>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };

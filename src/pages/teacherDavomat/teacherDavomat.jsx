@@ -192,46 +192,50 @@ const filteredTeachers = useMemo(() => {
   }, [teachers]);
 
   // Davomatni saqlash
-  const saveAttendance = async () => {
-    if (!currentTeacher || !arrivalTime) {
-      message.error("O'qituvchi va kelish vaqti majburiy!");
-      return;
+const saveAttendance = async () => {
+  if (!currentTeacher) {
+    message.error("O'qituvchi tanlanmagan!");
+    return;
+  }
+
+  try {
+    const attendanceData = {
+      employeeNo: currentTeacher.employeeNo,
+      davomatDate: normalizeDate(startDate),
+    };
+
+    // 🔥 KELDI
+    if (attendanceType === "arrive") {
+      attendanceData.status = "keldi";
     }
 
-    try {
-      const attendanceData = {
-        employeeNo: currentTeacher.employeeNo,
-        davomatDate: normalizeDate(startDate),
-        status: "keldi", // Har doim "keldi" status beriladi
-        time: arrivalTime.format("HH:mm"),
-      };
-
-      // Ketish vaqti mavjud bo'lsa qo'shiladi, lekin status "keldi" bo'lib qoladi
-      if (leaveTime && attendanceType === "leave") {
-        attendanceData.quittedTime = leaveTime.format("HH:mm");
-      }
-
-      await addTeacherDavomat(attendanceData).unwrap();
-
-      const actionText = attendanceType === "arrive" ? "kelish" : "ketish";
-      message.success(
-        `${currentTeacher.firstName} ${currentTeacher.lastName} ning ${actionText} vaqti belgilandi`,
-      );
-
-      setAttendanceModal(false);
-      setCurrentTeacher(null);
-      setArrivalTime(null);
-      setLeaveTime(null);
-      setAttendanceType("");
-
-      await refetch();
-    } catch (error) {
-      console.error("Davomat belgilashda xatolik:", error);
-      message.error(
-        error?.data?.message || "Davomat belgilashda xatolik yuz berdi!",
-      );
+    // 🔥 KETDI (hech qanday vaqt yubormaymiz)
+    if (attendanceType === "leave") {
+      attendanceData.status = "leave";
     }
-  };
+
+    await addTeacherDavomat(attendanceData).unwrap();
+
+    const actionText = attendanceType === "arrive" ? "kelish" : "ketish";
+
+    message.success(
+      `${currentTeacher.firstName} ${currentTeacher.lastName} ning ${actionText} vaqti belgilandi`,
+    );
+
+    setAttendanceModal(false);
+    setCurrentTeacher(null);
+    setArrivalTime(null);
+    setLeaveTime(null);
+    setAttendanceType("");
+
+    await refetch();
+  } catch (error) {
+    console.error("Davomat belgilashda xatolik:", error);
+    message.error(
+      error?.data?.message || "Davomat belgilashda xatolik yuz berdi!",
+    );
+  }
+};
 
   // Kelmagan deb belgilash
   const markAsAbsent = async (teacher) => {

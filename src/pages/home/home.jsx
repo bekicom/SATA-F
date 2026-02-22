@@ -404,7 +404,10 @@ const Home = () => {
             </div>
           </div>
         </div>
-        <div className="stat-card stat-expense">
+        <div
+          className="stat-card stat-expense"
+          onClick={() => navigate("/harajat")}
+        >
           <div className="stat-icon"></div>
           <div className="stat-info">
             <p className="stat-label">Oylik Xarajat</p>
