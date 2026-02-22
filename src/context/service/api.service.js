@@ -24,4 +24,4 @@ export const apiSlice = createApi({
   tagTypes: ["update", "device", "Students", "Classes", "Payment", "School"],
   endpoints: (builder) => ({}),
 });
-// sasa
+// sa
