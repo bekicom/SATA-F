@@ -126,7 +126,7 @@ export const Layout = memo(() => {
               className={({ isActive }) => (isActive ? "active" : "")}
             >
               <BookOutlined />
-              <span>DarsJadval</span>
+              <span>Dars-Jadval</span>
             </NavLink>
           </li>
           <li>
@@ -162,7 +162,7 @@ export const Layout = memo(() => {
               className={({ isActive }) => (isActive ? "active" : "")}
             >
               <MdPayments />
-              <span>Harajatlar</span>
+              <span>Xarajatlar</span>
             </NavLink>
           </li>
           <li>

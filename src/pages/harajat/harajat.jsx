@@ -1,8 +1,23 @@
 import React, { useState, useEffect } from "react";
-import { Table, Input, Button, Select, DatePicker, Tag } from "antd";
+import {
+  Table,
+  Button,
+  Select,
+  DatePicker,
+  Tag,
+  Modal,
+  Form,
+  InputNumber,
+  Input,
+  message,
+} from "antd";
 import { FaPlus } from "react-icons/fa";
+import { MdEdit } from "react-icons/md";
 import { useNavigate } from "react-router-dom";
-import { useGetHarajatQuery } from "../../context/service/harajat.service";
+import {
+  useGetHarajatQuery,
+  useUpdateHarajatMutation,
+} from "../../context/service/harajat.service";
 import moment from "moment";
 import { Loading } from "../../components/loading/loading";
 
@@ -11,62 +26,68 @@ const { Option } = Select;
 const Harajat = () => {
   const navigate = useNavigate();
 
-  // 🔹 API dan ma'lumotlarni olish
   const {
     data = [],
     error: fetchError,
     isLoading: fetchLoading,
   } = useGetHarajatQuery();
+  const [updateHarajat, { isLoading: updateLoading }] =
+    useUpdateHarajatMutation();
 
-  // 🔹 Local state’lar
   const [filteredHarajat, setFilteredHarajat] = useState([]);
   const [totalAmount, setTotalAmount] = useState(0);
   const [filterType, setFilterType] = useState("all");
-  const [selectedDate, setSelectedDate] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState(
+    moment().format("YYYY-MM"),
+  ); // ✅ joriy oy
 
-  // 🔹 Boshlang‘ich yuklanish
+  // Edit modal
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [form] = Form.useForm();
+
+  // ✅ Oy yoki to'lov turi o'zgarganda filter
   useEffect(() => {
-    setFilteredHarajat(data);
-    calculateTotal(data);
-  }, [data]);
-
-  // 🔹 To‘lov turiga ko‘ra filter
-  useEffect(() => {
-    if (filterType === "all") {
-      setFilteredHarajat(data);
-      calculateTotal(data);
-    } else {
-      const filteredData = data.filter(
-        (item) => item.paymentType === filterType
-      );
-      setFilteredHarajat(filteredData);
-      calculateTotal(filteredData);
+    let filtered = data.filter(
+      (item) => moment(item.createdAt).format("YYYY-MM") === selectedMonth,
+    );
+    if (filterType !== "all") {
+      filtered = filtered.filter((item) => item.paymentType === filterType);
     }
-  }, [filterType, data]);
+    setFilteredHarajat(filtered);
+    calculateTotal(filtered);
+  }, [data, selectedMonth, filterType]);
 
-  // 🔹 Sanaga ko‘ra filter
-  const onChange = (date, dateString) => {
-    if (dateString) {
-      const filteredData = data.filter(
-        (item) => moment(item.createdAt).format("DD-MM-YYYY") === dateString
-      );
-      setFilteredHarajat(filteredData);
-      calculateTotal(filteredData);
-      setSelectedDate(dateString);
-    } else {
-      setSelectedDate("");
-      setFilteredHarajat(data);
-      calculateTotal(data);
-    }
-  };
-
-  // 🔹 Jami hisoblash
   const calculateTotal = (list) => {
     const total = list.reduce((acc, item) => acc + (item.summ || 0), 0);
     setTotalAmount(total);
   };
 
-  // 🔹 To‘lov turi rangli tag bilan
+  // Edit modal ochish
+  const openEdit = (record) => {
+    setEditingItem(record);
+    form.setFieldsValue({
+      name: record.name,
+      comment: record.comment,
+      summ: record.summ,
+      paymentType: record.paymentType,
+    });
+    setIsEditOpen(true);
+  };
+
+  const saveEdit = async () => {
+    try {
+      const values = await form.validateFields();
+      await updateHarajat({ id: editingItem._id, ...values }).unwrap();
+      message.success("Harajat muvaffaqiyatli yangilandi");
+      setIsEditOpen(false);
+      setEditingItem(null);
+      form.resetFields();
+    } catch {
+      message.error("Xatolik yuz berdi");
+    }
+  };
+
   const renderPaymentTag = (type) => {
     switch (type) {
       case "naqd":
@@ -80,13 +101,12 @@ const Harajat = () => {
     }
   };
 
-  // 🔹 Jadval ustunlari
   const columns = [
     {
       title: "№",
       key: "index",
       align: "center",
-      render: (text, record, index) => index + 1,
+      render: (_, __, index) => index + 1,
       width: 60,
     },
     {
@@ -109,7 +129,7 @@ const Harajat = () => {
       render: (summ) => (summ ? summ.toLocaleString("uz-UZ") : "0"),
     },
     {
-      title: "To‘lov turi",
+      title: "To'lov turi",
       dataIndex: "paymentType",
       key: "paymentType",
       align: "center",
@@ -123,26 +143,114 @@ const Harajat = () => {
       render: (date) => moment(date).format("DD-MM-YYYY HH:mm"),
       width: 160,
     },
+    {
+      title: "Amal",
+      key: "actions",
+      align: "center",
+      width: 80,
+      render: (_, record) => (
+        <Button
+          icon={<MdEdit />}
+          size="small"
+          onClick={() => openEdit(record)}
+        />
+      ),
+    },
   ];
 
-  // 🔹 Yuklanish yoki xato holatlari
   if (fetchLoading) return <Loading />;
   if (fetchError) return <div>❌ Harajatlarni olishda xato yuz berdi</div>;
 
   return (
     <div className="page">
+      {/* Edit Modal */}
+      <Modal
+        open={isEditOpen}
+        title="Harajatni tahrirlash"
+        onCancel={() => {
+          setIsEditOpen(false);
+          form.resetFields();
+        }}
+        footer={[
+          <Button
+            key="cancel"
+            onClick={() => {
+              setIsEditOpen(false);
+              form.resetFields();
+            }}
+          >
+            Bekor qilish
+          </Button>,
+          <Button
+            key="save"
+            type="primary"
+            loading={updateLoading}
+            onClick={saveEdit}
+          >
+            Saqlash
+          </Button>,
+        ]}
+      >
+        <Form form={form} layout="vertical">
+          <Form.Item
+            name="name"
+            label="Nomi"
+            rules={[{ required: true, message: "Nomini kiriting" }]}
+          >
+            <Input placeholder="Harajat nomi" />
+          </Form.Item>
+          <Form.Item name="comment" label="Sababi / Izoh">
+            <Input.TextArea placeholder="Izoh" rows={3} />
+          </Form.Item>
+          <Form.Item
+            name="summ"
+            label="Summasi (UZS)"
+            rules={[{ required: true, message: "Summani kiriting" }]}
+          >
+            <InputNumber
+              style={{ width: "100%" }}
+              min={0}
+              formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, " ")}
+              parser={(v) => v.replace(/\s/g, "")}
+              placeholder="Summa"
+            />
+          </Form.Item>
+          <Form.Item
+            name="paymentType"
+            label="To'lov turi"
+            rules={[{ required: true, message: "Turini tanlang" }]}
+          >
+            <Select placeholder="To'lov turini tanlang">
+              <Option value="naqd">Naqd</Option>
+              <Option value="plastik">Plastik</Option>
+              <Option value="bankshot">Xisob Raqam</Option>
+            </Select>
+          </Form.Item>
+        </Form>
+      </Modal>
+
       {/* Header */}
       <div className="page-header">
         <h1>Harajatlar</h1>
         <div
           className="page-header__actions"
-          style={{ display: "flex", gap: "10px" }}
+          style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}
         >
-          <DatePicker
-            format="DD-MM-YYYY"
-            onChange={onChange}
-            placeholder="Sanani tanlang"
+          {/* ✅ Oy tanlash */}
+          <input
+            type="month"
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            style={{
+              padding: "6px 10px",
+              border: "1px solid #d9d9d9",
+              borderRadius: "6px",
+              fontSize: "14px",
+              cursor: "pointer",
+            }}
           />
+
+          {/* To'lov turi filter */}
           <Select
             value={filterType}
             onChange={setFilterType}
@@ -153,6 +261,7 @@ const Harajat = () => {
             <Option value="plastik">Plastik</Option>
             <Option value="bankshot">Xisob Raqam</Option>
           </Select>
+
           <Button
             type="primary"
             onClick={() => navigate("create")}
@@ -163,12 +272,11 @@ const Harajat = () => {
               gap: "6px",
             }}
           >
-            <FaPlus /> Harajat qo‘shish
+            <FaPlus /> Harajat qo'shish
           </Button>
         </div>
       </div>
 
-      {/* Jadval */}
       <Table
         dataSource={filteredHarajat}
         columns={columns}
@@ -178,7 +286,6 @@ const Harajat = () => {
         size="middle"
       />
 
-      {/* Jami summa */}
       <div
         style={{
           textAlign: "right",
@@ -189,7 +296,7 @@ const Harajat = () => {
       >
         Jami harajat:{" "}
         <span style={{ color: "#d4380d" }}>
-          {totalAmount.toLocaleString("uz-UZ")} so‘m
+          {totalAmount.toLocaleString("uz-UZ")} so'm
         </span>
       </div>
     </div>

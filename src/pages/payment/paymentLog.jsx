@@ -28,19 +28,25 @@ const PaymentLog = () => {
   const { register, handleSubmit, reset, getValues } = useForm();
   const [editModal, setEditModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState(
-    moment().format("YYYY-MM-DD")
+    moment().format("YYYY-MM-DD"),
   );
   const [selectedClass, setSelectedClass] = useState("");
 
-  const filteredPayments = payments.filter((payment) => {
-    const paymentDate = moment(payment.createdAt).format("YYYY-MM-DD");
-    const paymentGroup = payment.user_group;
+  const filteredPayments = payments
+    .filter((payment) => {
+      const paymentDate = moment(payment.createdAt).format("YYYY-MM-DD");
+      const paymentGroup = payment.user_group;
 
-    return (
-      (selectedDate ? paymentDate === selectedDate : true) &&
-      (selectedClass ? paymentGroup === selectedClass : true)
+      return (
+        (selectedDate ? paymentDate === selectedDate : true) &&
+        (selectedClass ? paymentGroup === selectedClass : true)
+      );
+    })
+    .sort((a, b) =>
+      (a.user_fullname || "").localeCompare(b.user_fullname || "", "uz", {
+        sensitivity: "base",
+      }),
     );
-  });
 
   async function handleDeletePayment(id) {
     const password = prompt("Parolni kiriting");
@@ -224,7 +230,7 @@ const PaymentLog = () => {
                 ? dayjs(
                     payments.find((pt) => pt._id === editingPayment)
                       ?.payment_month,
-                    "MM-YYYY"
+                    "MM-YYYY",
                   )
                 : null
             }
@@ -270,7 +276,7 @@ const PaymentLog = () => {
                 border: "1px solid #d9d9d9",
                 borderRadius: "6px",
                 fontSize: "14px",
-                marginRight:"10px"
+                marginRight: "10px",
               }}
             />
             {selectedDate && (

@@ -23,6 +23,15 @@ export const harajatApi = apiSlice.injectEndpoints({
       }),
       invalidatesTags: ["Harajat", "School"],
     }),
+    // 🔹 Harajatni tahrirlash
+    updateHarajat: builder.mutation({
+      query: ({ id, ...body }) => ({
+        url: `/expenses/${id}`,
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: ["Harajat", "School"],
+    }),
   }),
   overrideExisting: false,
 });
@@ -31,4 +40,5 @@ export const {
   useGetHarajatQuery,
   useGetHarajatSummaryQuery,
   useAddHarajatMutation,
+  useUpdateHarajatMutation, // ✅
 } = harajatApi;

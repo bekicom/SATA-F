@@ -64,13 +64,24 @@ const Davomat = () => {
 
   // sinf bo‘yicha filter
   useEffect(() => {
+    let students = [];
+
     if (selectedClass) {
-      setFilteredStudents(
-        studentData.filter((item) => item.groupId._id === selectedClass)
+      students = studentData.filter(
+        (item) => item.groupId?._id === selectedClass,
       );
     } else {
-      setFilteredStudents(studentData);
+      students = [...studentData];
     }
+
+    // 🔥 Alfavit bo‘yicha tartiblash (firstName + lastName)
+    students.sort((a, b) => {
+      const nameA = `${a.firstName} ${a.lastName}`.toLowerCase();
+      const nameB = `${b.firstName} ${b.lastName}`.toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+
+    setFilteredStudents(students);
   }, [selectedClass, studentData]);
 
   const onChange = (date, dateString) => {
@@ -82,12 +93,12 @@ const Davomat = () => {
     const entryForDay = davomatData?.find(
       (item) =>
         moment(item.date).format("YYYY-MM-DD") ===
-        moment(selectedDate).format("YYYY-MM-DD")
+        moment(selectedDate).format("YYYY-MM-DD"),
     );
     if (!entryForDay || !Array.isArray(entryForDay.body)) return null;
 
     return entryForDay.body.find(
-      (s) => String(s.student_id?._id || s.student_id) === String(studentId)
+      (s) => String(s.student_id?._id || s.student_id) === String(studentId),
     );
   };
 
@@ -95,13 +106,13 @@ const Davomat = () => {
   const getStatus = (studentId) => {
     const entry = getStudentEntry(studentId);
 
-    if (!entry) return "Belgilanmagan";
+    if (!entry) return "kelmadi";
 
     if (entry.status === "keldi") return "Keldi";
     if (entry.status === "ketdi") return "Ketdi";
     if (entry.status === "kelmadi") return "Kelmadi";
 
-    return "Belgilanmagan";
+    return "kelmadi";
   };
 
   const getArrivedTime = (studentId) => {
@@ -152,7 +163,7 @@ const Davomat = () => {
 
       await addDavomatByScan(attendanceData).unwrap();
       message.success(
-        `${currentStudent.firstName} ${currentStudent.lastName} ning davomati belgilandi`
+        `${currentStudent.firstName} ${currentStudent.lastName} ning davomati belgilandi`,
       );
 
       setAttendanceModal(false);
@@ -180,7 +191,7 @@ const Davomat = () => {
       console.log("Kelmadi javobi:", res);
 
       message.success(
-        `${student.firstName} ${student.lastName} kelmagan deb belgilandi`
+        `${student.firstName} ${student.lastName} kelmagan deb belgilandi`,
       );
       refetch();
     } catch (error) {
@@ -189,7 +200,6 @@ const Davomat = () => {
     }
   };
 
-  // Oylik hisobot – endi 3 ta holat: keldi / kelmadi / belgilanmagan
   const getMonthlyStatus = (student_id, month) => {
     const [monthPart, yearPart] = month.split("-").map(Number);
     const daysInMonth = new Date(yearPart, monthPart, 0).getDate();
@@ -199,16 +209,16 @@ const Davomat = () => {
     for (let day = 1; day <= daysInMonth; day++) {
       const currentDate = moment(
         `${yearPart}-${monthPart}-${day}`,
-        "YYYY-MM-DD"
+        "YYYY-MM-DD",
       );
 
       const entryForDay = davomatData.find(
         (d) =>
           moment(d.date).format("YYYY-MM-DD") ===
-          currentDate.format("YYYY-MM-DD")
+          currentDate.format("YYYY-MM-DD"),
       );
 
-      let status = "none"; // yozuv yo‘q – belgilanmagan
+      let status = "none";
       let time = "-";
       let quittedTime = "-";
 
@@ -221,8 +231,8 @@ const Davomat = () => {
             if (item.status === "keldi") status = "keldi";
             else if (item.status === "kelmadi") status = "kelmadi";
 
-            time = item.time || time;
-            quittedTime = item.quittedTime || quittedTime;
+            time = item.time || "-";
+            quittedTime = item.quittedTime || "-";
           }
         });
       }
@@ -244,7 +254,8 @@ const Davomat = () => {
         status,
         time,
         quittedTime,
-        isWeekend: currentDate.day() === 0,
+        // 🔥 Shanba ham dam olish
+        isWeekend: currentDate.day() === 0 || currentDate.day() === 6,
       });
     }
 
@@ -553,15 +564,24 @@ const Davomat = () => {
                       }}
                     >
                       {item.isWeekend ? (
-                        <Tag color="orange" size="small">
-                          {item.day}
+                        <Tag color="default" size="small">
+                          Dam olish
+                        </Tag>
+                      ) : item.status === "keldi" ? (
+                        <Tag color="success" size="small">
+                          <FaCheckCircle style={{ marginRight: "4px" }} />
+                          Kelgan
+                        </Tag>
+                      ) : item.status === "kelmadi" ? (
+                        <Tag color="error" size="small">
+                          <FaTimesCircle style={{ marginRight: "4px" }} />
+                          Kelmagan
                         </Tag>
                       ) : (
-                        <Tag color="blue" size="small">
-                          {item.day}
-                        </Tag>
+                        <span style={{ color: "#ccc" }}>-</span>
                       )}
                     </td>
+
                     <td
                       style={{
                         padding: "12px 8px",
@@ -619,7 +639,7 @@ const Davomat = () => {
                         </Tag>
                       ) : (
                         <Tag color="default" size="small">
-                          Belgilangan emas
+                          kelmadi
                         </Tag>
                       )}
                     </td>
@@ -708,7 +728,7 @@ const Davomat = () => {
             <td>Sana</td>
             <td>Kelish vaqti</td>
             <td>Ketish vaqti</td>
-            <td>Holati</td>
+            {/* <td>Holati</td> */}
             <td>Amallar</td>
             <td>Hisobot</td>
           </tr>
@@ -744,11 +764,11 @@ const Davomat = () => {
                 <td>{selectedDate}</td>
                 <td>{arrivedTime}</td>
                 <td>{quittedTime}</td>
-                <td>
+                {/* <td>
                   <Tag color={tagColor} icon={tagIcon}>
                     {status}
                   </Tag>
-                </td>
+                </td> */}
                 <td>
                   <Space size="small">
                     <Button

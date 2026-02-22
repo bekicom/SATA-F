@@ -1,120 +1,136 @@
-import React, { useEffect, useState } from "react";
+import React, { useMemo, useState } from "react";
 import "./payment.css";
 import { useGetPaymentQuery } from "../../context/service/payment.service";
+import { useGetClassQuery } from "../../context/service/class.service";
 import { Table } from "../../components/table/table";
 import moment from "moment";
 import { FaList, FaPlus } from "react-icons/fa";
-import { Button, DatePicker, Input, Select } from "antd";
+import { Button, DatePicker, Input, Select, Spin, Empty } from "antd";
 import { useNavigate } from "react-router-dom";
-import { useGetClassQuery } from "../../context/service/class.service";
 
 const { Search } = Input;
 const { Option } = Select;
 
 export const Payment = () => {
-  const { data = null } = useGetPaymentQuery();
+  const { data: payments = [], isLoading, isFetching } = useGetPaymentQuery();
+
   const { data: groupData = [] } = useGetClassQuery();
-  const [filteredPayments, setFilteredPayments] = useState([]);
-  const today = moment().format("MM-YYYY");
-  const [selectedMonth, setSelectedMonth] = useState(today);
+
+  const navigate = useNavigate();
+
+  const currentMonth = moment().format("MM-YYYY");
+
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
   const [viewType, setViewType] = useState("monthly");
   const [selectedClass, setSelectedClass] = useState(null);
-  const navigate = useNavigate();
-  const { data: classData = [] } = useGetClassQuery();
+  const [searchValue, setSearchValue] = useState("");
 
-  useEffect(() => {
-    if (data) {
-      // 🔹 Filter payments by class
-      let payments = data;
-      if (selectedClass) {
-        payments = payments.filter(
-          (payment) => payment.user_groupId === selectedClass
-        );
+  // 🔥 Fast group lookup
+  const groupMap = useMemo(() => {
+    const map = {};
+    groupData.forEach((g) => {
+      if (g?._id) map[g._id] = g;
+    });
+    return map;
+  }, [groupData]);
+
+  // 🔥 FILTER
+  const filteredPayments = useMemo(() => {
+    if (!Array.isArray(payments)) return [];
+
+    const todayDate = moment().format("YYYY-MM-DD");
+
+    return payments.filter((item) => {
+      if (!item) return false;
+
+      // Class filter
+      if (selectedClass && item.user_groupId !== selectedClass) {
+        return false;
       }
-      setFilteredPayments(payments);
-    } else {
-      setFilteredPayments([]);
-    }
-  }, [data, selectedClass]);
 
-  const handleSearch = (value) => {
-    const filtered = data.filter((payment) =>
-      payment.user_fullname.toLowerCase().includes(value.toLowerCase())
+      // Search filter
+      if (
+        searchValue &&
+        !item.user_fullname?.toLowerCase().includes(searchValue.toLowerCase())
+      ) {
+        return false;
+      }
+
+      // Monthly filter
+      if (viewType === "monthly") {
+        if (!selectedMonth) return true;
+
+        const itemMonth = moment(item.payment_month, "MM-YYYY");
+        const selected = moment(selectedMonth, "MM-YYYY");
+
+        return itemMonth.isValid() && itemMonth.isSame(selected, "month");
+      }
+
+      // Daily filter
+      if (viewType === "daily") {
+        const paymentDate = moment(item.createdAt).format("YYYY-MM-DD");
+        return paymentDate === todayDate;
+      }
+
+      return true;
+    });
+  }, [payments, selectedClass, searchValue, selectedMonth, viewType]);
+
+  // 🔥 TOTAL
+  const totalPayment = useMemo(() => {
+    return filteredPayments.reduce(
+      (sum, item) => sum + (Number(item?.payment_quantity) || 0),
+      0,
     );
-    setFilteredPayments(filtered);
-  };
+  }, [filteredPayments]);
 
-  const handleViewTypeChange = (value) => {
-    setViewType(value);
-  };
-
-  const handleClassChange = (value) => {
-    setSelectedClass(value);
-  };
-
-  const getTotalPayment = () => {
-    let total = 0;
-
-    if (Array.isArray(filteredPayments)) {
-      filteredPayments.forEach((payment) => {
-        if (viewType === "monthly") {
-          if (payment.payment_month === selectedMonth) {
-            total += payment.payment_quantity;
-          }
-        } else if (viewType === "daily") {
-          const paymentDate = moment(payment.createdAt).format("YYYY-MM-DD");
-          const today = moment().format("YYYY-MM-DD");
-          if (paymentDate === today) {
-            total += payment.payment_quantity;
-          }
-        }
-      });
-    }
-
-    return total;
-  };
+  // 🔥 LOADING UI
+  if (isLoading) {
+    return (
+      <div style={{ padding: 40, textAlign: "center" }}>
+        <Spin size="large" />
+      </div>
+    );
+  }
 
   return (
     <div className="page">
       <div className="page-header">
         <h1>To'lovlar</h1>
+
         <div className="page-header__actions">
           <Search
             placeholder="Ism bo'yicha qidiruv"
-            onChange={(e) => handleSearch(e.target.value)}
-            enterButton
-            style={{ width: "300px", marginRight: "10px" }}
+            onChange={(e) => setSearchValue(e.target.value)}
+            style={{ width: 300, marginRight: 10 }}
           />
+
           <DatePicker
-            onChange={(date, dateString) => {
-              if (dateString) {
-                setSelectedMonth(dateString);
-              } else {
-                setSelectedMonth(today);
-              }
-            }}
-            format="MM-YYYY"
             picker="month"
-            placeholder="Oy"
-            required
+            format="MM-YYYY"
+            onChange={(date, dateString) =>
+              setSelectedMonth(dateString || null)
+            }
           />
+
           <Select
-            defaultValue={viewType}
-            style={{ width: 120, marginRight: "10px" }}
-            onChange={handleViewTypeChange}
+            value={viewType}
+            style={{ width: 120, marginRight: 10 }}
+            onChange={setViewType}
           >
             <Option value="monthly">Oylik</Option>
             <Option value="daily">Kunlik</Option>
           </Select>
 
           <Select
+            allowClear
             placeholder="Sinfni tanlash"
-            style={{ width: 180, marginRight: "10px" }}
-            onChange={handleClassChange}
+            style={{ width: 180, marginRight: 10 }}
+            onChange={setSelectedClass}
           >
-            {classData?.map((classItem) => (
-              <Option key={classItem._id} value={classItem._id}>
-                {classItem.name}
+            {groupData.map((g) => (
+              <Option key={g._id || g.name} value={g._id}>
+                {g.name}
               </Option>
             ))}
           </Select>
@@ -122,106 +138,92 @@ export const Payment = () => {
           <Button type="primary" onClick={() => navigate("log")}>
             <FaList />
           </Button>
+
           <Button type="primary" onClick={() => navigate("create")}>
             <FaPlus />
           </Button>
         </div>
       </div>
 
-      <Table>
-        <thead>
-          <tr>
-            <th>№</th>
-            <th>To'liq ismi</th>
-            <th>Sinfi</th>
-            <th>To'lov summasi</th>
-            <th>To'lov oyi</th>
-            <th>To'lov sanasi</th>
-            <th>To'lov turi</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filteredPayments
-            ?.filter((item) => {
-              if (viewType === "monthly") {
-                return item.payment_month === selectedMonth;
-              } else if (viewType === "daily") {
-                const paymentDate = moment(item.createdAt).format("YYYY-MM-DD");
-                const today = moment().format("YYYY-MM-DD");
-                return paymentDate === today;
-              }
-              return true;
-            })
-            .map((item, index) => (
-              <tr key={item?._id}>
-                <td>{index + 1}</td>
-                <td>{item?.user_fullname}</td>
-                <td>
-                  {groupData.find((group) => group._id === item?.user_group)
-                    ? groupData.find((group) => group._id === item?.user_group)
-                        .name +
-                      " " +
-                      groupData.find(
-                        (group) => group._id === item?.user_group
-                      ).number
-                    : "Noma'lum"}
-                </td>
-                <td>{item?.payment_quantity.toLocaleString()} UZS</td>
-                <td>
-                  {monthName(item?.payment_month.slice(0, 2)) +
-                    " " +
-                    item.payment_month.slice(3, 8)}
-                </td>
-                <td>{moment(item?.createdAt).format("DD.MM.YYYY HH:mm")}</td>
-                <td>
-                  {item?.payment_type === "cash"
-                    ? "Naqd"
-                    : item?.payment_type === "card"
-                    ? "Karta"
-                    : item?.payment_type === "bankshot"
-                    ? "BankShot"
-                    : "Noma'lum"}
-                </td>
-              </tr>
-            ))}
-        </tbody>
-      </Table>
+      {filteredPayments.length === 0 ? (
+        <Empty description="To'lovlar topilmadi" />
+      ) : (
+        <Table>
+          <thead>
+            <tr>
+              <th>№</th>
+              <th>To'liq ismi</th>
+              <th>Sinfi</th>
+              <th>To'lov summasi</th>
+              <th>To'lov oyi</th>
+              <th>To'lov sanasi</th>
+              <th>To'lov turi</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredPayments.map((item, index) => {
+              const uniqueKey = item?._id || `${item?.user_fullname}-${index}`;
+
+              const group = groupMap[item?.user_group];
+
+              return (
+                <tr key={uniqueKey}>
+                  <td>{index + 1}</td>
+                  <td>{item?.user_fullname}</td>
+                  <td>
+                    {group ? `${group.name} ${group.number || ""}` : "Noma'lum"}
+                  </td>
+                  <td>{Number(item?.payment_quantity).toLocaleString()} UZS</td>
+                  <td>
+                    {monthName(item?.payment_month?.slice(0, 2))}{" "}
+                    {item?.payment_month?.slice(3, 8)}
+                  </td>
+                  <td>{moment(item?.createdAt).format("DD.MM.YYYY HH:mm")}</td>
+                  <td>
+                    {item?.payment_type === "cash"
+                      ? "Naqd"
+                      : item?.payment_type === "card"
+                        ? "Karta"
+                        : item?.payment_type === "bankshot"
+                          ? "BankShot"
+                          : "Noma'lum"}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </Table>
+      )}
 
       <div className="total-payment">
-        <h3>Jami to'lov: {getTotalPayment().toLocaleString()} UZS</h3>
+        <h3>Jami to'lov: {totalPayment.toLocaleString()} UZS</h3>
       </div>
+
+      {isFetching && (
+        <div style={{ textAlign: "center", marginTop: 10 }}>
+          <Spin size="small" />
+        </div>
+      )}
     </div>
   );
 };
 
-// 🟩 Helper function for month names
+// 🔹 Month helper
 const monthName = (month) => {
-  switch (month) {
-    case "01":
-      return "Yanvar";
-    case "02":
-      return "Fevral";
-    case "03":
-      return "Mart";
-    case "04":
-      return "Aprel";
-    case "05":
-      return "May";
-    case "06":
-      return "Iyun";
-    case "07":
-      return "Iyul";
-    case "08":
-      return "Avgust";
-    case "09":
-      return "Sentabr";
-    case "10":
-      return "Oktabr";
-    case "11":
-      return "Noyabr";
-    case "12":
-      return "Dekabr";
-    default:
-      return "Noma'lum oy";
-  }
+  const months = {
+    "01": "Yanvar",
+    "02": "Fevral",
+    "03": "Mart",
+    "04": "Aprel",
+    "05": "May",
+    "06": "Iyun",
+    "07": "Iyul",
+    "08": "Avgust",
+    "09": "Sentabr",
+    10: "Oktabr",
+    11: "Noyabr",
+    12: "Dekabr",
+  };
+
+  return months[month] || "Noma'lum oy";
 };

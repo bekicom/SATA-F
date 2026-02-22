@@ -35,12 +35,19 @@ const Oylikberish = () => {
   const [paySalary, { isLoading: salaryLoading }] = usePaySalaryMutation();
 
   // ======= State =======
+  const currentMonth = useMemo(() => moment().format("YYYY-MM"), []);
+
   const [filteredTeachers, setFilteredTeachers] = useState([]);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [selectedTeacher, setSelectedTeacher] = useState(null);
-  const [paymentMonth, setPaymentMonth] = useState(moment().format("YYYY-MM"));
+
+  // ✅ Jadval uchun tanlangan oy (yuqoridagi input)
+  const [displayMonth, setDisplayMonth] = useState(currentMonth);
+
+  // Modal uchun alohida oy
+  const [paymentMonth, setPaymentMonth] = useState(currentMonth);
   const [amount, setAmount] = useState("");
-  const [paymentType, setPaymentType] = useState("karta"); // 🆕 To'lov turi
+  const [paymentType, setPaymentType] = useState("karta");
 
   // ======= Helpers =======
   const formatNumber = (num) => num.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
@@ -50,9 +57,12 @@ const Oylikberish = () => {
     setAmount(formatNumber(onlyDigits(e.target.value)));
   };
 
+  // ✅ Loop xatosi tuzatildi — teachers.length ga bog'landi
   useEffect(() => {
-    setFilteredTeachers(teachers);
-  }, [teachers]);
+    if (teachers?.length) {
+      setFilteredTeachers(teachers);
+    }
+  }, [teachers?.length]);
 
   const isSameMonth = (value, monthYYYYMM) => {
     if (!value) return false;
@@ -66,13 +76,15 @@ const Oylikberish = () => {
     return false;
   };
 
+  // ✅ Faqat shu oyning salary doc ini topadi (har oy alohida hujjat)
   const findSalaryDoc = (teacherId, monthYYYYMM) =>
     salaryReport.find(
       (r) =>
         String(r.teacherId) === String(teacherId) &&
-        r.paymentMonth === monthYYYYMM
+        r.paymentMonth === monthYYYYMM,
     );
 
+  // ✅ Faqat topilgan hujjatning (shu oyning) loglarini hisoblaydi
   const getEarnedAndPaidFromLogs = (salaryDoc) => {
     if (!salaryDoc || !Array.isArray(salaryDoc.logs))
       return { earned: 0, paid: 0 };
@@ -96,12 +108,12 @@ const Oylikberish = () => {
     }, 0);
   };
 
-  const currentMonth = useMemo(() => moment().format("YYYY-MM"), []);
+  // ✅ displayMonth o'zgarganda jadval qayta hisoblanadi
   const withComputed = useMemo(() => {
     return filteredTeachers.map((t) => {
-      const sd = findSalaryDoc(t._id, currentMonth);
+      const sd = findSalaryDoc(t._id, displayMonth);
       const { earned, paid } = getEarnedAndPaidFromLogs(sd);
-      const extra = getExtraCharge(t, currentMonth);
+      const extra = getExtraCharge(t, displayMonth);
       const total = earned + extra;
       const remaining = total - paid;
       return {
@@ -113,17 +125,16 @@ const Oylikberish = () => {
         _remaining: remaining,
       };
     });
-  }, [filteredTeachers, salaryReport, currentMonth]);
+  }, [filteredTeachers, salaryReport, displayMonth]);
 
   const handleOpenModal = (teacher) => {
     setSelectedTeacher(teacher);
-    setPaymentMonth(currentMonth);
+    setPaymentMonth(displayMonth); // Modal da jadval oyi bilan ochiladi
     setAmount("");
-    setPaymentType("karta"); // 🆕 Default to'lov turi
+    setPaymentType("karta");
     setIsModalVisible(true);
   };
 
-  // 🆕 To'lov qilish (paymentType bilan)
   const handlePay = async () => {
     try {
       if (!selectedTeacher) return;
@@ -137,7 +148,7 @@ const Oylikberish = () => {
         teacherId: selectedTeacher._id,
         salaryAmount: plainNumber,
         paymentMonth: paymentMonth,
-        paymentType: paymentType, // 🆕 To'lov turini yuborish
+        paymentType: paymentType,
       }).unwrap();
 
       message.success("Oylik muvaffaqiyatli to'landi");
@@ -155,7 +166,7 @@ const Oylikberish = () => {
       (t) =>
         t.firstName.toLowerCase().includes(v) ||
         t.lastName.toLowerCase().includes(v) ||
-        `${t.firstName} ${t.lastName}`.toLowerCase().includes(v)
+        `${t.firstName} ${t.lastName}`.toLowerCase().includes(v),
     );
     setFilteredTeachers(filtered);
   };
@@ -173,14 +184,14 @@ const Oylikberish = () => {
       "To'langan (paid)": t._paid || 0,
       "Umumiy (earned+extra)": t._total || 0,
       "Qoldiq (to'lash kerak)": t._remaining || 0,
-      Oy: currentMonth,
+      Oy: displayMonth,
     }));
 
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(rows);
     XLSX.utils.book_append_sheet(wb, ws, "Oylik");
     const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    const fname = `oylik_${currentMonth}.xlsx`;
+    const fname = `oylik_${displayMonth}.xlsx`;
     saveAs(new Blob([wbout], { type: "application/octet-stream" }), fname);
   };
 
@@ -226,7 +237,7 @@ const Oylikberish = () => {
     },
     {
       title: "Jami oylik",
-      key: "_total",
+      key: "monthlySalary",
       render: (_, r) => Number(r.monthlySalary || 0).toLocaleString(),
       align: "right",
     },
@@ -268,16 +279,15 @@ const Oylikberish = () => {
     },
   ];
 
-  // 🆕 Chekni to'lov turi bilan chop etish
   const printReceipt = (paymentDetails) => {
     const paymentTypeLabel =
       paymentDetails.paymentType === "naqd"
         ? "Naqd pul"
         : paymentDetails.paymentType === "karta"
-        ? "Karta"
-        : paymentDetails.paymentType === "bank"
-        ? "Bank o'tkazmasi"
-        : "";
+          ? "Karta"
+          : paymentDetails.paymentType === "bank"
+            ? "Bank o'tkazmasi"
+            : "";
 
     const printWindow = window.open("", "", "width=600,height=400");
     printWindow.document.write(`
@@ -323,10 +333,11 @@ const Oylikberish = () => {
       >
         <h2>Oylik Beruvchi Sahifa</h2>
         <Space>
+          {/* ✅ displayMonth — jadval filtri uchun alohida state */}
           <input
             type="month"
-            value={paymentMonth || currentMonth}
-            onChange={(e) => setPaymentMonth(e.target.value)}
+            value={displayMonth}
+            onChange={(e) => setDisplayMonth(e.target.value)}
             style={{
               padding: "8px 12px",
               fontSize: "14px",
@@ -358,7 +369,6 @@ const Oylikberish = () => {
         pagination={{ pageSize: 10 }}
       />
 
-      {/* 🆕 Yangilangan Modal - To'lov turi tanlash bilan */}
       <Modal
         title="To'lov qilish"
         open={isModalVisible}
@@ -412,7 +422,7 @@ const Oylikberish = () => {
             </label>
             <input
               type="month"
-              value={paymentMonth || currentMonth}
+              value={paymentMonth}
               onChange={(e) => setPaymentMonth(e.target.value)}
               style={{
                 width: "100%",
@@ -426,7 +436,6 @@ const Oylikberish = () => {
             />
           </div>
 
-          {/* 🆕 To'lov turini tanlash */}
           <div>
             <label
               style={{ display: "block", marginBottom: 12, fontWeight: 500 }}

@@ -2,45 +2,25 @@ import { apiSlice } from "./api.service";
 
 export const salaryApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
-    // Get all teachers: GET - /teachers
+    // ===== GET =====
+
     getTeachers: builder.query({
       query: () => "/teachers",
       providesTags: ["Salary"],
     }),
 
-    // Get all salary docs
     getSalary: builder.query({
       query: () => "/salary",
       providesTags: ["Salary"],
     }),
 
-    // Salary summary
     getSalarySummary: builder.query({
-      query: () => "/salary/get/summary",
+      query: () => "/salary/summary", // ✅ to‘g‘rilandi
       providesTags: ["Salary"],
     }),
 
-    // Create exchange lesson
-    createExchange: builder.mutation({
-      query: (body) => ({
-        url: "/exchange",
-        method: "POST",
-        body: body,
-      }),
-      invalidatesTags: ["Salary"],
-    }),
+    // ===== POST =====
 
-    // Update salary
-    updateSalary: builder.mutation({
-      query: (body) => ({
-        url: "/salary/update",
-        method: "PUT",
-        body: body,
-      }),
-      invalidatesTags: ["Salary"],
-    }),
-
-    // Manual salary payment
     paySalary: builder.mutation({
       query: (salaryData) => ({
         url: "/salary",
@@ -50,7 +30,15 @@ export const salaryApi = apiSlice.injectEndpoints({
       invalidatesTags: ["Salary", "School"],
     }),
 
-    // 🆕 Davomat asosida oylik yozish
+    createExchange: builder.mutation({
+      query: (body) => ({
+        url: "/salary/exchange", // ✅ to‘g‘rilandi
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["Salary"],
+    }),
+
     addAttendanceSalary: builder.mutation({
       query: (attendanceData) => ({
         url: "/salary/attendance",
@@ -58,6 +46,28 @@ export const salaryApi = apiSlice.injectEndpoints({
         body: attendanceData,
       }),
       invalidatesTags: ["Salary", "School"],
+    }),
+
+    // ===== PUT =====
+
+    updateSalary: builder.mutation({
+      query: (body) => ({
+        url: "/salary",
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: ["Salary"],
+    }),
+
+    // ===== 🆕 PATCH (LOG EDIT) =====
+
+    updateSalaryLog: builder.mutation({
+      query: (body) => ({
+        url: "/salary/log",
+        method: "PATCH",
+        body,
+      }),
+      invalidatesTags: ["Salary"],
     }),
   }),
 });
@@ -69,5 +79,6 @@ export const {
   usePaySalaryMutation,
   useCreateExchangeMutation,
   useUpdateSalaryMutation,
-  useAddAttendanceSalaryMutation, // 🆕 hook
+  useAddAttendanceSalaryMutation,
+  useUpdateSalaryLogMutation, // 🆕 YANGI HOOK
 } = salaryApi;

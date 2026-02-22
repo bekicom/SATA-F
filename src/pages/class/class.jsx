@@ -114,10 +114,10 @@ const Class = () => {
     }
   };
 
-  const getStudentName = (id) => {
-    const student = studentData?.find((student) => student._id === id);
-    return student ? student.firstName + " " + student.lastName : "Loading...";
-  };
+const getStudentName = (id) => {
+  const student = studentData?.find((student) => student._id === id);
+  return student ? student.firstName + " " + student.lastName : "";
+};
 
   const handleSubmit = async () => {
     try {
@@ -208,23 +208,19 @@ const Class = () => {
             </tr>
           </thead>
           <tbody>
-            {crClassData?.students?.map((student, index) => (
-              <tr key={index}>
-                <td>
-                  <span>{studentNames[student]}</span>
-                  <button
-                    style={{
-                      color: "#fff",
-                      fontSize: "20px",
-                      marginLeft: "12px",
-                    }}
-                    onClick={() => showQrModal(student)}
-                  >
-                    <MdQrCodeScanner />
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {crClassData?.students
+              ?.slice()
+              .filter((id) => studentNames[id]) // 🔥 bo‘shlarni chiqarib tashlaydi
+              .sort((a, b) =>
+                studentNames[a].localeCompare(studentNames[b], "uz", {
+                  sensitivity: "base",
+                }),
+              )
+              .map((student) => (
+                <tr key={student}>
+                  <td style={{ textAlign: "left" }}>{studentNames[student]}</td>
+                </tr>
+              ))}
           </tbody>
         </Table>
       </Modal>
@@ -240,23 +236,7 @@ const Class = () => {
             Chop etish
           </Button>,
         ]}
-      >
-        {selectedStudent && (
-          <div
-            ref={qrCodeRef}
-            style={{ width: "100%", justifyContent: "center", display: "flex" }}
-            className="qrbox"
-          >
-            <QRCode renderAs="svg" value={selectedStudent._id} />
-            <p>
-              {selectedStudent.firstName.charAt(0).toUpperCase() +
-                selectedStudent.firstName.slice(1)}{" "}
-              {selectedStudent.lastName.charAt(0).toUpperCase() +
-                selectedStudent.lastName.slice(1)}
-            </p>
-          </div>
-        )}
-      </Modal>
+      ></Modal>
 
       <div className="page-header">
         <h1>Sinflar</h1>
@@ -283,55 +263,67 @@ const Class = () => {
           </tr>
         </thead>
         <tbody>
-          {classData?.map((item, index) => (
-            <tr key={item._id}>
-              <td>{index + 1}</td>
-              <td>
-                {item.teacher ? (
-                  item.teacher?.firstName + " " + item.teacher?.lastName
-                ) : (
-                  <Popover placement="bottom" content="O'qituvchi tayinlash">
-                    <button>
-                      <FaPlus />
+          {classData
+            ?.slice()
+            .sort((a, b) =>
+              String(a.number).localeCompare(String(b.number), "uz", {
+                numeric: true,
+                sensitivity: "base",
+              }),
+            )
+            .map((item, index) => (
+              <tr key={item._id}>
+                <td>{index + 1}</td>
+
+                <td>
+                  {item.teacher ? (
+                    item.teacher?.firstName + " " + item.teacher?.lastName
+                  ) : (
+                    <Popover placement="bottom" content="O'qituvchi tayinlash">
+                      <button>
+                        <FaPlus />
+                      </button>
+                    </Popover>
+                  )}
+                </td>
+
+                <td>{item.name}</td>
+                <td>{item.number}</td>
+                <td>{item.students.length}</td>
+
+                <td>
+                  <Popover placement="bottom" content="O'quvchilarni ko'rish">
+                    <button onClick={() => showStudentListModal(item._id)}>
+                      <MdGroups />
                     </button>
                   </Popover>
-                )}
-              </td>
-              <td>{item.name}</td>
-              <td>{item.number}</td>
-              <td>{item.students.length}</td>
-              <td>
-                <Popover placement="bottom" content="O'quvchilarni ko'rish">
-                  <button onClick={() => showStudentListModal(item._id)}>
-                    <MdGroups />
-                  </button>
-                </Popover>
-                <Popover placement="bottom" content="Davomat olish">
-                  <button
-                    onClick={() => showModal(item._id)}
-                    disabled={(() => {
-                      const todayDavomat = davomatData?.find(
-                        (davomat) =>
-                          davomat.date === today &&
-                          davomat.body.some(
-                            (group) => group.group_id === item._id
-                          )
-                      );
-                      return todayDavomat ? true : false;
-                    })()}
-                  >
-                    <FaCalendarCheck />
-                  </button>
-                </Popover>
 
-                <Popover placement="bottom" content="Tahrirlash">
-                  <button onClick={() => navigate(`/addclass/${item._id}`)}>
-                    <MdEdit />
-                  </button>
-                </Popover>
-              </td>
-            </tr>
-          ))}
+                  {/* <Popover placement="bottom" content="Davomat olish">
+                    <button
+                      onClick={() => showModal(item._id)}
+                      disabled={(() => {
+                        const todayDavomat = davomatData?.find(
+                          (davomat) =>
+                            davomat.date === today &&
+                            davomat.body.some(
+                              (group) => group.group_id === item._id,
+                            ),
+                        );
+                        return !!todayDavomat;
+                      })()}
+                    >
+                      <FaCalendarCheck />
+                    </button>
+                  </Popover> */}
+
+                  <Popover placement="bottom" content="Tahrirlash">
+                    <button onClick={() => navigate(`/addclass/${item._id}`)}>
+                      <MdEdit />
+                    </button>
+                  </Popover>
+                </td>
+              </tr>
+            ))}
         </tbody>
       </Table>
     </div>

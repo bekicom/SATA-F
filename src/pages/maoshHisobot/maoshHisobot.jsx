@@ -1,11 +1,19 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import "../payment/payment.css";
 import { Table } from "../../components/table/table";
 import moment from "moment";
-import { Button, Input, Select, Modal, message, Pagination } from "antd";
+import {
+  Button,
+  Input,
+  Select,
+  Modal,
+  message,
+  Pagination,
+  InputNumber,
+} from "antd";
 import {
   useGetSalaryQuery,
-  useUpdateSalaryMutation,
+  useUpdateSalaryLogMutation, // 🆕 log edit uchun
 } from "../../context/service/oylikberish.service";
 import { MdEdit } from "react-icons/md";
 import { FaDownload } from "react-icons/fa";
@@ -17,29 +25,30 @@ const { Option } = Select;
 
 export const MaoshHisobot = () => {
   const { data: salaryDocs = [] } = useGetSalaryQuery();
-  const [updateSalary, { isLoading }] = useUpdateSalaryMutation();
+  const [updateSalaryLog, { isLoading: logUpdating }] =
+    useUpdateSalaryLogMutation();
 
   // Filtrlar
   const [searchValue, setSearchValue] = useState("");
   const [selectedMonth, setSelectedMonth] = useState(moment().format("MM"));
   const [selectedDate, setSelectedDate] = useState("");
 
-  // Edit modal (oy bo'yicha Salary hujjati)
-  const [isVisible, setIsVisible] = useState(false);
-  const [editingSalaryDoc, setEditingSalaryDoc] = useState(null);
-  const [paymentMonth, setPaymentMonth] = useState("");
-  const [salaryAmount, setSalaryAmount] = useState("");
-
-  // To'lovlar modal (har bir payment detali)
+  // To'lovlar modali
   const [isPaymentsOpen, setIsPaymentsOpen] = useState(false);
   const [paymentsModalTitle, setPaymentsModalTitle] = useState("");
-  const [paymentsList, setPaymentsList] = useState([]); // {amount, date}
+  const [paymentsList, setPaymentsList] = useState([]);
   const [paymentsPage, setPaymentsPage] = useState(1);
   const paymentsPageSize = 5;
 
-  // 1) Salary hujjatlaridan manual loglar ro'yxati
+  // 🆕 Log edit modali
+  const [isEditLogOpen, setIsEditLogOpen] = useState(false);
+  const [editingLog, setEditingLog] = useState(null); // { docId, logIndex, amount, date, teacherName }
+  const [editAmount, setEditAmount] = useState(0);
+
+  // 1) Manual loglar
   const manualRows = useMemo(() => {
     const rows = [];
+
     for (const doc of salaryDocs) {
       const logs = Array.isArray(doc.logs) ? doc.logs : [];
       for (let i = 0; i < logs.length; i++) {
@@ -48,13 +57,14 @@ export const MaoshHisobot = () => {
           rows.push({
             _rowId: `${doc._id}_${i}`,
             docId: doc._id,
+            logIndex: i, // 🆕 log indexi (backendga yuborish uchun)
+            logId: log._id, // ✅ shu qatorni qo'sh
             teacher_fullname: doc.teacher_fullname,
             teacherId: String(doc.teacherId),
             amount: Number(log.amount || 0),
-            paymentMonth: doc.paymentMonth, // "YYYY-MM"
-            date: log.date, // ISO
-            createdAt: doc.createdAt,
-            updatedAt: doc.updatedAt,
+            paymentMonth: doc.paymentMonth,
+            date: log.date,
+            paymentType: log.paymentType || "",
           });
         }
       }
@@ -62,7 +72,7 @@ export const MaoshHisobot = () => {
     return rows;
   }, [salaryDocs]);
 
-  // 2) Filtrlash (ism, oy, sana) — log.date bo'yicha
+  // 2) Filtrlash
   const filteredPayments = useMemo(() => {
     const s = (searchValue || "").toLowerCase();
     return manualRows.filter((r) => {
@@ -78,7 +88,7 @@ export const MaoshHisobot = () => {
     });
   }, [manualRows, searchValue, selectedMonth, selectedDate]);
 
-  // 3) ASOSIY JADVAL: o'qituvchi + oy bo'yicha jamlash
+  // 3) Jamlash
   const grouped = useMemo(() => {
     const map = new Map();
     filteredPayments.forEach((r) => {
@@ -96,14 +106,20 @@ export const MaoshHisobot = () => {
       curr.payments.push({
         amount: Number(r.amount || 0),
         date: r.date,
+        docId: r.docId,
+        logIndex: r.logIndex,
+        logId: r.logId, // ✅ shu qatorni qo'sh
+        paymentType: r.paymentType,
+        teacher_fullname: r.teacher_fullname,
       });
       map.set(key, curr);
     });
+
     const rows = Array.from(map.values())
       .map((g) => ({
         ...g,
         payments: g.payments.sort(
-          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
         ),
       }))
       .sort((a, b) => a.teacher_fullname.localeCompare(b.teacher_fullname));
@@ -112,63 +128,50 @@ export const MaoshHisobot = () => {
     return { rows, grand };
   }, [filteredPayments]);
 
-  // 4) Edit (jamlangan qator bo'yicha Salary hujjati)
-  const openEditModalGroup = (groupRow) => {
-    const doc = salaryDocs.find(
-      (d) =>
-        String(d.teacherId) === String(groupRow.teacherId) &&
-        d.paymentMonth === groupRow.paymentMonth
-    );
-    if (!doc) {
-      message.warning("Bu o'qituvchi-oy bo'yicha Salary hujjati topilmadi.");
-      return;
-    }
-    setEditingSalaryDoc(doc);
-    setPaymentMonth(doc.paymentMonth);
-    setSalaryAmount(String(doc.salaryAmount || 0));
-    setIsVisible(true);
-  };
-
-  const saveEdit = async () => {
-    if (!editingSalaryDoc) return;
-    try {
-      await updateSalary({
-        salary_id: editingSalaryDoc._id,
-        salaryAmount: Number(salaryAmount),
-        paymentMonth: paymentMonth, // "YYYY-MM"
-      }).unwrap();
-      message.success("Maosh hujjati yangilandi");
-    } catch {
-      message.error("Xatolik yuz berdi");
-    } finally {
-      setIsVisible(false);
-      setEditingSalaryDoc(null);
-      setPaymentMonth("");
-      setSalaryAmount("");
-    }
-  };
-
-  // 5) To'lovlar modalini ochish (bekzod — 30k, 50k ... sana bilan)
+  // 4) To'lovlar modalini ochish
   const openPaymentsModal = (groupRow) => {
     const title = `${groupRow.teacher_fullname} — ${moment(
       groupRow.paymentMonth,
-      "YYYY-MM"
+      "YYYY-MM",
     ).format("MMMM YYYY")}`;
     setPaymentsModalTitle(title);
-    setPaymentsList(groupRow.payments); // all payments (sorted desc)
+    setPaymentsList(groupRow.payments);
     setPaymentsPage(1);
     setIsPaymentsOpen(true);
   };
 
-  // 6) Excel eksport (vedomost + jamlangan)
+  // 🆕 5) Log edit modalini ochish
+  const openEditLog = (payment) => {
+    setEditingLog(payment);
+    setEditAmount(payment.amount);
+    setIsEditLogOpen(true);
+  };
+
+  // 🆕 6) Log saqlash
+  const saveLogEdit = async () => {
+    if (!editingLog) return;
+    try {
+      await updateSalaryLog({
+        salaryId: editingLog.docId,
+        logIndex: editingLog.logIndex, // ✅ logId → logIndex
+        newAmount: editAmount,
+      }).unwrap();
+      message.success("To'lov summasi yangilandi");
+      setIsEditLogOpen(false);
+      setEditingLog(null);
+      // To'lovlar ro'yxatini yangilash uchun modalni yopamiz
+      setIsPaymentsOpen(false);
+    } catch {
+      message.error("Xatolik yuz berdi");
+    }
+  };
+
+  // 7) Excel eksport
   const exportToExcel = () => {
     const monthTitle = grouped.rows[0]
       ? moment(grouped.rows[0].paymentMonth, "YYYY-MM").format("MMMM YYYY")
-      : filteredPayments[0]
-      ? moment(filteredPayments[0].paymentMonth, "YYYY-MM").format("MMMM YYYY")
       : moment().format("MMMM YYYY");
 
-    // Sheet 1: Vedomost
     const aoa1 = [];
     aoa1.push([`Oylik vedomosi — ${monthTitle}`]);
     aoa1.push([`Sana: ${moment().format("DD.MM.YYYY")}`]);
@@ -193,7 +196,7 @@ export const MaoshHisobot = () => {
     });
     const total1 = filteredPayments.reduce(
       (s, r) => s + Number(r.amount || 0),
-      0
+      0,
     );
     aoa1.push([]);
     aoa1.push(["Jami:", "", total1, "", "", ""]);
@@ -201,6 +204,7 @@ export const MaoshHisobot = () => {
     aoa1.push(["", "Qabul qildi (o'qituvchi):", "", "", "", "______________"]);
     aoa1.push(["", "Bosh hisobchi:", "", "", "", "______________"]);
     aoa1.push(["", "Direktor:", "", "", "", "______________"]);
+
     const ws1 = XLSX.utils.aoa_to_sheet(aoa1);
     ws1["!cols"] = [
       { wch: 5 },
@@ -215,7 +219,6 @@ export const MaoshHisobot = () => {
       { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } },
     ];
 
-    // Sheet 2: Jamlangan
     const aoa2 = [];
     aoa2.push([`Jamlangan — ${monthTitle}`]);
     aoa2.push([]);
@@ -230,15 +233,14 @@ export const MaoshHisobot = () => {
         g.payments
           .map(
             (p) =>
-              `${moment(p.date).format(
-                "DD.MM.YYYY HH:mm"
-              )}: ${p.amount.toLocaleString()} UZS`
+              `${moment(p.date).format("DD.MM.YYYY HH:mm")}: ${p.amount.toLocaleString()} UZS`,
           )
           .join("; "),
       ]);
     });
     aoa2.push([]);
     aoa2.push(["Umumiy jami:", "", "", grouped.grand, "", ""]);
+
     const ws2 = XLSX.utils.aoa_to_sheet(aoa2);
     ws2["!cols"] = [
       { wch: 5 },
@@ -253,8 +255,10 @@ export const MaoshHisobot = () => {
     XLSX.utils.book_append_sheet(wb, ws1, "Vedomost");
     XLSX.utils.book_append_sheet(wb, ws2, "Jamlangan");
     const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    const fname = `Oylik_vedomoti_${moment().format("YYYY-MM-DD_HH-mm")}.xlsx`;
-    saveAs(new Blob([wbout], { type: "application/octet-stream" }), fname);
+    saveAs(
+      new Blob([wbout], { type: "application/octet-stream" }),
+      `Oylik_vedomoti_${moment().format("YYYY-MM-DD_HH-mm")}.xlsx`,
+    );
   };
 
   const months = [
@@ -272,47 +276,98 @@ export const MaoshHisobot = () => {
     { key: "12", name: "Dekabr" },
   ];
 
+  const paymentTypeLabel = (type) =>
+    type === "naqd"
+      ? "💵 Naqd"
+      : type === "karta"
+        ? "💳 Karta"
+        : type === "bank"
+          ? "🏦 Bank"
+          : "—";
+
   return (
     <div className="page">
-      {/* Hujjat tahrirlash modali */}
+      {/* 🆕 Log Edit Modali */}
       <Modal
-        open={isVisible}
-        title="Maosh hujjatini tahrirlash (oy yig'indisi)"
+        open={isEditLogOpen}
+        title="To'lov summasini tahrirlash"
         onCancel={() => {
-          setIsVisible(false);
-          setEditingSalaryDoc(null);
-          setPaymentMonth("");
-          setSalaryAmount("");
+          setIsEditLogOpen(false);
+          setEditingLog(null);
         }}
         footer={[
           <Button
+            key="cancel"
+            onClick={() => {
+              setIsEditLogOpen(false);
+              setEditingLog(null);
+            }}
+          >
+            Bekor qilish
+          </Button>,
+          <Button
             key="save"
             type="primary"
-            loading={isLoading}
-            onClick={saveEdit}
+            loading={logUpdating}
+            onClick={saveLogEdit}
           >
             Saqlash
           </Button>,
         ]}
       >
-        <Input
-          placeholder="Hujjatning umumiy salaryAmount qiymati"
-          value={salaryAmount}
-          onChange={(e) => setSalaryAmount(e.target.value)}
-        />
-        <input
-          type="month"
-          value={paymentMonth}
-          onChange={(e) => setPaymentMonth(e.target.value)}
-          style={{
-            width: "100%",
-            marginTop: 12,
-            padding: "8px",
-            border: "1px solid #d9d9d9",
-            borderRadius: "4px",
-          }}
-          placeholder="Oyni tanlang"
-        />
+        {editingLog && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div
+              style={{ background: "#f5f5f5", padding: 12, borderRadius: 8 }}
+            >
+              <div>
+                <b>O'qituvchi:</b> {editingLog.teacher_fullname}
+              </div>
+              <div>
+                <b>Sana:</b>{" "}
+                {moment(editingLog.date).format("DD.MM.YYYY HH:mm")}
+              </div>
+              <div>
+                <b>To'lov turi:</b> {paymentTypeLabel(editingLog.paymentType)}
+              </div>
+            </div>
+            <div>
+              <label
+                style={{ display: "block", marginBottom: 8, fontWeight: 500 }}
+              >
+                Yangi summa (UZS)
+              </label>
+              <InputNumber
+                style={{ width: "100%" }}
+                size="large"
+                min={0}
+                value={editAmount}
+                onChange={(val) => setEditAmount(val)}
+                formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, " ")}
+                parser={(v) => v.replace(/\s/g, "")}
+                prefix="UZS"
+              />
+            </div>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                color: "#888",
+                fontSize: 13,
+              }}
+            >
+              <span>
+                Eski summa: <b>{editingLog.amount.toLocaleString()} UZS</b>
+              </span>
+              <span>
+                Yangi summa:{" "}
+                <b style={{ color: "#1890ff" }}>
+                  {(editAmount || 0).toLocaleString()} UZS
+                </b>
+              </span>
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* To'lovlar (detal) modali */}
@@ -331,34 +386,90 @@ export const MaoshHisobot = () => {
             size="small"
           />,
         ]}
-        width={420}
+        width={500}
       >
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
-            <tr>
-              <th style={{ textAlign: "right", padding: 6 }}>Summa</th>
-              <th style={{ textAlign: "right", padding: 6 }}>Sana</th>
+            <tr style={{ background: "#fafafa" }}>
+              <th
+                style={{
+                  textAlign: "left",
+                  padding: "8px 6px",
+                  borderBottom: "1px solid #f0f0f0",
+                }}
+              >
+                Sana
+              </th>
+              <th
+                style={{
+                  textAlign: "center",
+                  padding: "8px 6px",
+                  borderBottom: "1px solid #f0f0f0",
+                }}
+              >
+                Tur
+              </th>
+              <th
+                style={{
+                  textAlign: "right",
+                  padding: "8px 6px",
+                  borderBottom: "1px solid #f0f0f0",
+                }}
+              >
+                Summa
+              </th>
+              <th
+                style={{
+                  textAlign: "center",
+                  padding: "8px 6px",
+                  borderBottom: "1px solid #f0f0f0",
+                }}
+              >
+                {/* 🆕 Edit ustuni */}
+                Amal
+              </th>
             </tr>
           </thead>
           <tbody>
             {paymentsList
               .slice(
                 (paymentsPage - 1) * paymentsPageSize,
-                paymentsPage * paymentsPageSize
+                paymentsPage * paymentsPageSize,
               )
               .map((p, i) => (
-                <tr key={i} style={{ borderTop: "1px solid #f0f0f0" }}>
-                  <td style={{ textAlign: "right", padding: 6 }}>
+                <tr key={i} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                  <td style={{ padding: "8px 6px" }}>
+                    {moment(p.date).format("DD.MM.YYYY HH:mm")}
+                  </td>
+                  <td style={{ textAlign: "center", padding: "8px 6px" }}>
+                    {paymentTypeLabel(p.paymentType)}
+                  </td>
+                  <td
+                    style={{
+                      textAlign: "right",
+                      padding: "8px 6px",
+                      fontWeight: 500,
+                    }}
+                  >
                     {p.amount.toLocaleString()} UZS
                   </td>
-                  <td style={{ textAlign: "right", padding: 6 }}>
-                    {moment(p.date).format("YYYY-MM-DD HH:mm")}
+                  <td style={{ textAlign: "center", padding: "8px 6px" }}>
+                    {/* 🆕 Edit tugmasi */}
+                    <Button
+                      size="small"
+                      icon={<MdEdit />}
+                      onClick={() => openEditLog(p)}
+                      title="Summani tahrirlash"
+                    />
                   </td>
                 </tr>
               ))}
             {paymentsList.length === 0 && (
               <tr>
-                <td colSpan={2} style={{ textAlign: "center", padding: 12 }}>
+                <td
+                  colSpan={4}
+                  style={{ textAlign: "center", padding: 12, color: "#999" }}
+                >
                   To'lov topilmadi
                 </td>
               </tr>
@@ -396,11 +507,11 @@ export const MaoshHisobot = () => {
                 : ""
             }
             onChange={(e) => {
-              if (e.target.value) {
-                setSelectedDate(moment(e.target.value).format("DD.MM.YYYY"));
-              } else {
-                setSelectedDate("");
-              }
+              setSelectedDate(
+                e.target.value
+                  ? moment(e.target.value).format("DD.MM.YYYY")
+                  : "",
+              );
             }}
             style={{
               marginRight: 10,
@@ -408,7 +519,6 @@ export const MaoshHisobot = () => {
               border: "1px solid #d9d9d9",
               borderRadius: "4px",
             }}
-            placeholder="Sana"
           />
           <Button onClick={exportToExcel} type="primary" icon={<FaDownload />}>
             Excelga yuklab olish
@@ -416,7 +526,7 @@ export const MaoshHisobot = () => {
         </div>
       </div>
 
-      {/* PASTDAGI JADVAL — JAMLANGAN */}
+      {/* Jadval */}
       <div id="printableArea">
         <Table>
           <thead>
@@ -439,20 +549,20 @@ export const MaoshHisobot = () => {
                   {g.total.toLocaleString()} UZS
                 </td>
                 <td>{moment(g.paymentMonth, "YYYY-MM").format("MMMM YYYY")}</td>
-
                 <td>
+                  {/* Tarix tugmasi — ichida har bir to'lovni edit qilish imkoniyati bor */}
                   <Button
-                    style={{ marginRight: 8, width: "120px" }}
+                    style={{ width: "120px" }}
                     onClick={() => openPaymentsModal(g)}
                   >
-                    Tarix
+                    Tarix / Edit
                   </Button>
                 </td>
               </tr>
             ))}
             {grouped.rows.length === 0 && (
               <tr>
-                <td colSpan={7} style={{ textAlign: "center", padding: 16 }}>
+                <td colSpan={6} style={{ textAlign: "center", padding: 16 }}>
                   Ma'lumot topilmadi
                 </td>
               </tr>

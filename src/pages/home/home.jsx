@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { Line, Bar } from "react-chartjs-2";
+import { useNavigate } from "react-router-dom";
+
 import {
   Chart as ChartJS,
   LineElement,
@@ -17,6 +19,7 @@ import { useGetHarajatQuery } from "../../context/service/harajat.service";
 import moment from "moment";
 import "./home.css";
 
+
 ChartJS.register(
   LineElement,
   BarElement,
@@ -32,6 +35,8 @@ const Home = () => {
   const { data: schoolData = {} } = useGetSchoolQuery();
   const { data: payments = [] } = useGetPaymentLogQuery();
   const { data: harajatlar = [] } = useGetHarajatQuery();
+  const navigate = useNavigate();
+
 
   const [selectedDate, setSelectedDate] = useState(
     moment().format("YYYY-MM-DD")
@@ -367,7 +372,11 @@ const Home = () => {
 
       {/* Oylik statistika */}
       <div className="stats-grid">
-        <div className="stat-card stat-income">
+        <div
+          className="stat-card stat-income"
+          onClick={() => navigate("/payment/log")}
+          style={{ cursor: "pointer" }}
+        >
           <div className="stat-icon"></div>
           <div className="stat-info">
             <p className="stat-label">Oylik Kirim</p>

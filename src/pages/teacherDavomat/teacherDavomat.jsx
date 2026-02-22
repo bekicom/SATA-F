@@ -49,7 +49,7 @@ const { Title, Text } = Typography;
 const TeacherDavomat = () => {
   const navigate = useNavigate();
   const role = localStorage.getItem("role");
-
+const [searchTerm, setSearchTerm] = useState("");
   const { data: teachers = [], isLoading: teachersLoading } =
     useGetTeachersQuery();
   const {
@@ -90,6 +90,20 @@ const TeacherDavomat = () => {
     const teacher = teachers.find((t) => t._id === id);
     return teacher ? `${teacher.firstName} ${teacher.lastName}` : "Noma'lum";
   };
+const filteredTeachers = useMemo(() => {
+  return [...teachers]
+    .filter((teacher) => {
+      const fullName = `${teacher.firstName} ${teacher.lastName}`.toLowerCase();
+
+      return fullName.includes(searchTerm.toLowerCase());
+    })
+    .sort((a, b) => {
+      const nameA = `${a.firstName} ${a.lastName}`.toLowerCase();
+      const nameB = `${b.firstName} ${b.lastName}`.toLowerCase();
+
+      return nameA.localeCompare(nameB, "uz", { sensitivity: "base" });
+    });
+}, [teachers, searchTerm]);
 
   // O'qituvchi entry topish - optimized with useMemo
   const findTeacherEntry = useMemo(() => {
@@ -122,19 +136,17 @@ const TeacherDavomat = () => {
   // Status olish
   const getStatus = (teacherId, date) => {
     const entry = findTeacherEntry(teacherId, date);
-    if (!entry) return "Belgilanmagan";
+    if (!entry) return null;
 
-    // Agar entry mavjud bo'lsa va kelish vaqti bo'lsa - "Keldi"
-    if (entry.status?.toLowerCase() === "keldi" || entry.time) {
-      return "Keldi";
-    }
-
-    // Agar kelmadi deb belgilangan bo'lsa
     if (entry.status?.toLowerCase() === "kelmadi") {
       return "Kelmadi";
     }
 
-    return "Belgilanmagan";
+    if (entry.status?.toLowerCase() === "keldi" || entry.time) {
+      return "Keldi";
+    }
+
+    return null;
   };
 
   const getArrivedTime = (teacherId) => {
@@ -170,6 +182,14 @@ const TeacherDavomat = () => {
 
     setAttendanceModal(true);
   };
+  const sortedTeachers = useMemo(() => {
+    return [...teachers].sort((a, b) => {
+      const nameA = `${a.firstName} ${a.lastName}`.toLowerCase();
+      const nameB = `${b.firstName} ${b.lastName}`.toLowerCase();
+
+      return nameA.localeCompare(nameB, "uz", { sensitivity: "base" });
+    });
+  }, [teachers]);
 
   // Davomatni saqlash
   const saveAttendance = async () => {
@@ -243,6 +263,7 @@ const TeacherDavomat = () => {
     const daysInMonth = moment(`${year}-${month}`, "YYYY-MM").daysInMonth();
 
     const result = [];
+
     const uzbekDays = {
       Sunday: "Yakshanba",
       Monday: "Dushanba",
@@ -264,12 +285,12 @@ const TeacherDavomat = () => {
       let quittedTime = "-";
 
       if (entry) {
-        // Agar kelish vaqti bo'lsa yoki status "keldi" bo'lsa - kelgan deb hisoblanadi
         if (entry.status?.toLowerCase() === "keldi" || entry.time) {
           status = "keldi";
         } else if (entry.status?.toLowerCase() === "kelmadi") {
           status = "kelmadi";
         }
+
         time = entry.time || "-";
         quittedTime = entry.quittedTime || "-";
       }
@@ -282,7 +303,8 @@ const TeacherDavomat = () => {
         status,
         time,
         quittedTime,
-        isWeekend: currentDate.day() === 0,
+        // 🔥 Shanba + Yakshanba
+        isWeekend: currentDate.day() === 0 || currentDate.day() === 6,
       });
     }
 
@@ -665,27 +687,22 @@ const TeacherDavomat = () => {
                       }}
                     >
                       {item.isWeekend ? (
-                        <Tag color="orange">{item.day}</Tag>
-                      ) : (
-                        <Tag color="purple">{item.day}</Tag>
-                      )}
-                    </td>
-                    <td
-                      style={{
-                        padding: "12px 8px",
-                        borderBottom: "1px solid #f0f0f0",
-                        textAlign: "center",
-                      }}
-                    >
-                      {item.time !== "-" ? (
-                        <Tag color="green" style={{ fontFamily: "monospace" }}>
-                          <FaClock style={{ marginRight: "4px" }} />
-                          {item.time}
+                        <Tag color="default">Dam olish</Tag>
+                      ) : item.status === "keldi" ? (
+                        <Tag color="success">
+                          <FaCheckCircle style={{ marginRight: "4px" }} />
+                          Kelgan
+                        </Tag>
+                      ) : item.status === "kelmadi" ? (
+                        <Tag color="error">
+                          <FaTimesCircle style={{ marginRight: "4px" }} />
+                          Kelmagan
                         </Tag>
                       ) : (
                         <span style={{ color: "#ccc" }}>-</span>
                       )}
                     </td>
+
                     <td
                       style={{
                         padding: "12px 8px",
@@ -722,7 +739,7 @@ const TeacherDavomat = () => {
                           Kelmagan
                         </Tag>
                       ) : (
-                        <Tag color="default">Belgilanmagan</Tag>
+                        <Tag color="default">kelmadi</Tag>
                       )}
                     </td>
                   </tr>
@@ -783,6 +800,19 @@ const TeacherDavomat = () => {
           style={{ display: "flex", gap: "12px", alignItems: "center" }}
         >
           <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <input
+              type="text"
+              placeholder="O'qituvchi ismi bo'yicha qidirish..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{
+                padding: "6px 12px",
+                fontSize: "14px",
+                border: "1px solid #d9d9d9",
+                borderRadius: "4px",
+                minWidth: "220px",
+              }}
+            />
             <label style={{ fontSize: "14px", fontWeight: "500" }}>Dan:</label>
             <input
               type="date"
@@ -797,24 +827,7 @@ const TeacherDavomat = () => {
               }}
             />
 
-            <label
-              style={{ fontSize: "14px", fontWeight: "500", marginLeft: "8px" }}
-            >
-              Gacha:
-            </label>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              min={startDate}
-              style={{
-                padding: "6px 12px",
-                fontSize: "14px",
-                border: "1px solid #d9d9d9",
-                borderRadius: "4px",
-                cursor: "pointer",
-              }}
-            />
+     
           </div>
 
           <Button type="primary" onClick={() => navigate(-1)}>
@@ -849,7 +862,6 @@ const TeacherDavomat = () => {
             <td>Sana</td>
             <td>Kelish vaqti</td>
             <td>Ketish vaqti</td>
-            <td>Holat</td>
             <td>Amallar</td>
             <td>Hisobot</td>
           </tr>
@@ -862,7 +874,7 @@ const TeacherDavomat = () => {
               </td>
             </tr>
           ) : (
-            teachers.map((teacher, index) => {
+            filteredTeachers.map((teacher, index) => {
               const status = getStatus(teacher._id, startDate);
               const arrivedTime = getArrivedTime(teacher._id);
               const quittedTime = getQuittedTime(teacher._id);
@@ -870,11 +882,10 @@ const TeacherDavomat = () => {
               const tagConfig = {
                 Keldi: { color: "success", icon: <FaCheckCircle /> },
                 Kelmadi: { color: "error", icon: <FaTimesCircle /> },
-                Belgilanmagan: { color: "default", icon: null },
+                kelmadi: { color: "default", icon: null },
               };
-
               const { color: tagColor, icon: tagIcon } =
-                tagConfig[status] || tagConfig["Belgilanmagan"];
+                tagConfig[status] || tagConfig["kelmadi"];
 
               return (
                 <tr key={teacher._id}>
@@ -910,11 +921,11 @@ const TeacherDavomat = () => {
                       <span style={{ color: "#ccc" }}>-</span>
                     )}
                   </td>
-                  <td>
+                  {/* <td>
                     <Tag color={tagColor} icon={tagIcon}>
                       {status}
                     </Tag>
-                  </td>
+                  </td> */}
                   <td>
                     <Space size="small">
                       <Button

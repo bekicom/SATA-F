@@ -11,7 +11,7 @@ import { useNavigate } from "react-router-dom";
 import { useGetClassQuery } from "../../context/service/class.service";
 import { useGetCoinQuery } from "../../context/service/students.service";
 import { useGetSchoolQuery } from "../../context/service/admin.service";
-import logo from "../../assets/svg/f.jpg"; // ✅ TO'G'RILANDI
+import logo from "../../assets/svg/f.jpg";
 import moment from "moment";
 
 const { Search } = Input;
@@ -28,6 +28,10 @@ export const Debt = () => {
   const [filteredDebts, setFilteredDebts] = useState([]);
   const [selectedClass, setSelectedClass] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+
+  // ✅ Yangi: oy filtri uchun state
+  const [filterMonth, setFilterMonth] = useState("");
+
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [modalData, setModalData] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -60,7 +64,6 @@ export const Debt = () => {
   const getMonthName = (monthNumber) =>
     monthsList.find((m) => m.key === monthNumber)?.name || "";
 
-  // 🟢 Barcha oylarni generatsiya qilish
   useEffect(() => {
     generateAllMonths();
   }, []);
@@ -68,9 +71,57 @@ export const Debt = () => {
   const generateAllMonths = () => {
     const currentYear = moment().year();
     const years = [currentYear - 1, currentYear, currentYear + 1];
-
     const allMonths = [];
+    years.forEach((year) => {
+      monthsList.forEach((month) => {
+        allMonths.push({
+          key: `${month.key}-${year}`,
+          name: `${month.name} ${year}`,
+          value: `${month.key}-${year}`,
+          year: year.toString(),
+          month: month.key,
+        });
+      });
+    });
+    setAvailableMonths(allMonths.reverse());
+  };
 
+  useEffect(() => {
+    const transformed = transformPaymentsData(data);
+    setDebts(transformed);
+  }, [data, studentData]);
+
+  // ✅ Filtrlash — ism, sinf VA oy bo'yicha
+  useEffect(() => {
+    const filtered = debts.filter((debt) => {
+      const matchesSearch = debt.user_fullname
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase());
+
+      const matchesClass =
+        !selectedClass || debt.user_groupId === selectedClass;
+
+      // ✅ Oy filtri: tanlangan oy ushbu talabaning qarzdor oylari ichida bormi?
+      const matchesMonth =
+        !filterMonth ||
+        Object.keys(debt.debts || {}).some((m) => m === filterMonth);
+
+      return matchesSearch && matchesClass && matchesMonth;
+    });
+    setFilteredDebts(filtered);
+  }, [searchTerm, selectedClass, filterMonth, debts]);
+
+  useEffect(() => {
+    if (!selectedStudent) return;
+    const student = studentData.find((s) => s._id === selectedStudent.user_id);
+    if (!student?.admissionDate) return;
+
+    const admissionDate = moment(student.admissionDate).startOf("month");
+    const currentDate = moment().startOf("month");
+
+    const currentYear = moment().year();
+    const years = [currentYear - 1, currentYear, currentYear + 1];
+    const allMonths = [];
     years.forEach((year) => {
       monthsList.forEach((month) => {
         allMonths.push({
@@ -83,45 +134,7 @@ export const Debt = () => {
       });
     });
 
-    setAvailableMonths(allMonths.reverse());
-  };
-
-  // 🟢 Ma'lumotlarni transform qilish
-  useEffect(() => {
-    const transformed = transformPaymentsData(data);
-    setDebts(transformed);
-    setFilteredDebts(transformed);
-  }, [data]);
-
-  // 🟢 Filtrlash
-  useEffect(() => {
-    const filtered = debts.filter((debt) => {
-      const matchesSearch = debt.user_fullname
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase());
-      const matchesClass =
-        !selectedClass || debt.user_groupId === selectedClass;
-
-      return matchesSearch && matchesClass;
-    });
-    setFilteredDebts(filtered);
-  }, [searchTerm, selectedClass, debts]);
-
-  // 🟢 Talaba tanlanganda oylarni filtrlash
-  useEffect(() => {
-    if (!selectedStudent) {
-      return;
-    }
-
-    const student = studentData.find((s) => s._id === selectedStudent.user_id);
-    if (!student?.admissionDate) {
-      return;
-    }
-
-    const admissionDate = moment(student.admissionDate).startOf("month");
-    const currentDate = moment().startOf("month");
-
-    const filteredMonths = availableMonths.filter((monthObj) => {
+    const filteredMonths = allMonths.reverse().filter((monthObj) => {
       const monthDate = moment(`01-${monthObj.value}`, "DD-MM-YYYY");
       return (
         monthDate.isSameOrAfter(admissionDate) &&
@@ -132,7 +145,6 @@ export const Debt = () => {
     setAvailableMonths(filteredMonths);
   }, [selectedStudent, studentData]);
 
-  // 🟢 Qarzdorlikni tekshirish
   useEffect(() => {
     if (selectedStudent && paymentMonth) {
       const getDebtStatus = async () => {
@@ -157,8 +169,22 @@ export const Debt = () => {
     if (!Array.isArray(payments)) return [];
 
     const groupedByStudent = payments.reduce((acc, payment) => {
-      const studentId = payment.user_id;
+      const student = studentData.find((s) => s._id === payment.user_id);
+      if (!student) return acc;
 
+      if (!student.isActive && student.inactiveFrom) {
+        const inactiveMoment = moment(
+          `01-${student.inactiveFrom}`,
+          "DD-MM-YYYY",
+        );
+        const paymentMoment = moment(
+          `01-${payment.payment_month}`,
+          "DD-MM-YYYY",
+        );
+        if (paymentMoment.isSameOrAfter(inactiveMoment)) return acc;
+      }
+
+      const studentId = payment.user_id;
       if (!acc[studentId]) {
         acc[studentId] = {
           ...payment,
@@ -190,7 +216,7 @@ export const Debt = () => {
     setPaymentAmount("");
     setPaymentType("");
     setQarzdorlik({});
-    generateAllMonths(); // Oylarni qayta yuklash
+    generateAllMonths();
   };
 
   const handleOk = async () => {
@@ -198,7 +224,6 @@ export const Debt = () => {
       message.error("Iltimos, barcha maydonlarni to'ldiring");
       return;
     }
-
     if (!selectedStudent) {
       message.error("Talaba tanlanmagan");
       return;
@@ -206,9 +231,8 @@ export const Debt = () => {
 
     try {
       const group = classData.find(
-        (g) => g._id === selectedStudent.user_groupId
+        (g) => g._id === selectedStudent.user_groupId,
       );
-
       const obj = {
         user_id: selectedStudent.user_id,
         user_fullname: selectedStudent.user_fullname,
@@ -241,7 +265,7 @@ export const Debt = () => {
     setPaymentType("");
     setQarzdorlik({});
     setSelectedStudent(null);
-    generateAllMonths(); // Oylarni qayta yuklash
+    generateAllMonths();
   };
 
   const showDebtsModal = (data) => {
@@ -253,10 +277,13 @@ export const Debt = () => {
     setIsModalVisible(true);
   };
 
-  const totalDebt = filteredDebts.reduce(
-    (acc, debt) => acc + (debt.debtSum || 0),
-    0
-  );
+  // ✅ Oy filtri qo'llanilganda jami qarz shu oyga qarab hisoblanadi
+  const totalDebt = filteredDebts.reduce((acc, debt) => {
+    if (filterMonth) {
+      return acc + (debt.debts?.[filterMonth] || 0);
+    }
+    return acc + (debt.debtSum || 0);
+  }, 0);
 
   const printReceipt = (paymentDetails, group) => {
     const printWindow = window.open("", "", "width=600,height=600");
@@ -264,10 +291,9 @@ export const Debt = () => {
       paymentDetails.payment_type === "cash"
         ? "Naqd to'lov"
         : paymentDetails.payment_type === "card"
-        ? "Karta to'lov"
-        : "Bank orqali to'lov (BankShot)";
+          ? "Karta to'lov"
+          : "Bank orqali to'lov (BankShot)";
 
-    // ✅ LOGO QO'SHILDI
     const logoHTML = `
       <div style="text-align: center; margin-bottom: 15px;">
         <img src="${logo}" alt="Logo" style="max-width: 150px; max-height: 80px; object-fit: contain;" />
@@ -279,37 +305,12 @@ export const Debt = () => {
         <head>
           <title>To'lov kvitansiyasi</title>
           <style>
-            body { 
-              font-family: Arial, sans-serif; 
-              padding: 15mm;
-              margin: 0;
-            }
-            .receipt { 
-              width: 80mm; 
-              margin: 0 auto;
-            }
-            .header { 
-              text-align: center; 
-              font-weight: bold; 
-              margin-bottom: 15px;
-              font-size: 16px;
-            }
-            .divider { 
-              border-top: 2px dashed #000; 
-              margin: 15px 0; 
-            }
-            .row { 
-              display: flex; 
-              justify-content: space-between; 
-              margin: 8px 0;
-              padding: 2px 0;
-            }
-            .footer {
-              text-align: center;
-              margin-top: 20px;
-              font-size: 12px;
-              color: #666;
-            }
+            body { font-family: Arial, sans-serif; padding: 15mm; margin: 0; }
+            .receipt { width: 80mm; margin: 0 auto; }
+            .header { text-align: center; font-weight: bold; margin-bottom: 15px; font-size: 16px; }
+            .divider { border-top: 2px dashed #000; margin: 15px 0; }
+            .row { display: flex; justify-content: space-between; margin: 8px 0; padding: 2px 0; }
+            .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #666; }
           </style>
         </head>
         <body>
@@ -317,48 +318,22 @@ export const Debt = () => {
             ${logoHTML}
             <div class="header">TO'LOV KVITANSIYASI</div>
             <div class="divider"></div>
-            <div class="row">
-              <b>Talaba:</b>
-              <span>${paymentDetails.user_fullname}</span>
-            </div>
-            <div class="row">
-              <b>Sinf:</b>
-              <span>${group?.name || "N/A"}</span>
-            </div>
-            <div class="row">
-              <b>To'lov miqdori:</b>
-              <span style="font-weight: bold;">${paymentDetails.payment_quantity.toLocaleString()} UZS</span>
-            </div>
-            <div class="row">
-              <b>To'lov oyi:</b>
-              <span>${getMonthName(
-                paymentDetails.payment_month.slice(0, 2)
-              )} ${paymentDetails.payment_month.slice(3, 7)}</span>
-            </div>
-            <div class="row">
-              <b>To'lov turi:</b>
-              <span>${paymentTypeText}</span>
-            </div>
-            <div class="row">
-              <b>Sana:</b>
-              <span>${moment().format("DD-MM-YYYY HH:mm")}</span>
-            </div>
+            <div class="row"><b>Talaba:</b><span>${paymentDetails.user_fullname}</span></div>
+            <div class="row"><b>Sinf:</b><span>${group?.name || "N/A"}</span></div>
+            <div class="row"><b>To'lov miqdori:</b><span style="font-weight: bold;">${paymentDetails.payment_quantity.toLocaleString()} UZS</span></div>
+            <div class="row"><b>To'lov oyi:</b><span>${getMonthName(paymentDetails.payment_month.slice(0, 2))} ${paymentDetails.payment_month.slice(3, 7)}</span></div>
+            <div class="row"><b>To'lov turi:</b><span>${paymentTypeText}</span></div>
+            <div class="row"><b>Sana:</b><span>${moment().format("DD-MM-YYYY HH:mm")}</span></div>
             <div class="divider"></div>
-            <div class="footer">
-              <p>To'lov muvaffaqiyatli amalga oshirildi</p>
-              <p>Rahmat!</p>
-            </div>
+            <div class="footer"><p>To'lov muvaffaqiyatli amalga oshirildi</p><p>Rahmat!</p></div>
           </div>
         </body>
       </html>
     `);
 
     printWindow.document.close();
-
-    // Logo yuklanishini kutish
     setTimeout(() => {
       printWindow.print();
-      // printWindow.close(); // Agar avtomatik yopish kerak bo'lsa
     }, 1000);
   };
 
@@ -373,14 +348,33 @@ export const Debt = () => {
       title: "To'liq ismi",
       dataIndex: "user_fullname",
       key: "user_fullname",
-      render: (text, record) => (
-        <div>
-          <div style={{ fontWeight: "bold" }}>{text}</div>
-          <small style={{ color: "#666", fontSize: "12px" }}>
-            {record.allPayments?.length || 0} ta qarzdor oy
-          </small>
-        </div>
-      ),
+      render: (text, record) => {
+        const student = studentData.find((s) => s._id === record.user_id);
+        return (
+          <div>
+            <div style={{ fontWeight: "bold" }}>
+              {text}
+              {student?.isActive === false && (
+                <span
+                  style={{
+                    marginLeft: 8,
+                    background: "#ff4d4f",
+                    color: "white",
+                    padding: "2px 6px",
+                    borderRadius: 4,
+                    fontSize: 11,
+                  }}
+                >
+                  NOFAOL {student?.inactiveFrom || ""}
+                </span>
+              )}
+            </div>
+            <small style={{ color: "#666", fontSize: "12px" }}>
+              {record.allPayments?.length || 0} ta qarzdor oy
+            </small>
+          </div>
+        );
+      },
     },
     {
       title: "Sinfi",
@@ -399,7 +393,7 @@ export const Debt = () => {
       key: "user_phone",
       render: (record) => {
         const student = studentData?.find(
-          (item) => item._id === record?.user_id
+          (item) => item._id === record?.user_id,
         );
         return student?.guardianPhoneNumber || "Noma'lum";
       },
@@ -408,11 +402,17 @@ export const Debt = () => {
       title: "Qarz summasi",
       dataIndex: "debtSum",
       key: "debt",
-      render: (text) => (
-        <span style={{ color: "red", fontWeight: "bold" }}>
-          {text?.toLocaleString() || "0"} UZS
-        </span>
-      ),
+      render: (text, record) => {
+        // ✅ Oy filtri bo'lsa faqat shu oyning qarzi ko'rsatiladi
+        const displayDebt = filterMonth
+          ? record.debts?.[filterMonth] || 0
+          : record.debtSum || 0;
+        return (
+          <span style={{ color: "red", fontWeight: "bold" }}>
+            {displayDebt.toLocaleString()} UZS
+          </span>
+        );
+      },
     },
     {
       title: "Qarzdor oylar",
@@ -448,17 +448,22 @@ export const Debt = () => {
     {
       title: "To'lov",
       key: "actions",
-      render: (text, record) => (
-        <Popover content="To'lovni amalga oshirish">
+      render: (text, record) => {
+        const student = studentData.find((s) => s._id === record.user_id);
+        return (
           <Button
             type="primary"
             onClick={() => handlePaymentClick(record)}
-            icon={<FaDollarSign />}
+            disabled={student?.isActive === false}
+            style={{
+              background: student?.isActive === false ? "#d9d9d9" : "#1677ff",
+              borderColor: student?.isActive === false ? "#d9d9d9" : "#1677ff",
+            }}
           >
-            To'lash
+            {student?.isActive === false ? "Nofaol" : "To'lash"}
           </Button>
-        </Popover>
-      ),
+        );
+      },
     },
   ];
 
@@ -498,7 +503,7 @@ export const Debt = () => {
             </strong>{" "}
             {moment(
               studentData.find((s) => s._id === selectedStudent.user_id)
-                ?.admissionDate
+                ?.admissionDate,
             ).format("DD-MM-YYYY")}
           </div>
         )}
@@ -683,23 +688,52 @@ export const Debt = () => {
           <Search
             placeholder="Ism bo'yicha qidiruv"
             onChange={(e) => setSearchTerm(e.target.value)}
-            style={{ width: 300, marginRight: 10 }}
+            style={{ width: 220, marginRight: 10 }}
             allowClear
           />
+
+          {/* ✅ Oy filtri */}
+          <Select
+            onChange={(value) => setFilterMonth(value || "")}
+            style={{ width: 160, marginRight: 10 }}
+            placeholder="Barcha oylar"
+            allowClear
+            value={filterMonth || undefined}
+          >
+            {(() => {
+              const currentYear = moment().year();
+              const years = [currentYear - 1, currentYear];
+              const opts = [];
+              years.forEach((year) => {
+                monthsList.forEach((month) => {
+                  opts.push(
+                    <Option
+                      key={`${month.key}-${year}`}
+                      value={`${month.key}-${year}`}
+                    >
+                      {month.name} {year}
+                    </Option>,
+                  );
+                });
+              });
+              return opts.reverse();
+            })()}
+          </Select>
+
           <Select
             onChange={(value) => setSelectedClass(value)}
-            style={{ width: 180 }}
+            style={{ width: 160, marginRight: 10 }}
             placeholder="Barcha sinf"
-            value={selectedClass}
+            value={selectedClass || undefined}
             allowClear
           >
-            <Option value="">Barcha sinf</Option>
             {classData.map((classItem) => (
               <Option key={classItem._id} value={classItem._id}>
                 {classItem.name}
               </Option>
             ))}
           </Select>
+
           <Button
             type="primary"
             onClick={() => navigate("/payment/create")}
@@ -741,7 +775,11 @@ export const Debt = () => {
         }}
       >
         <h3 style={{ margin: 0, color: "#389e0d" }}>
-          Jami qarz: {totalDebt.toLocaleString()} UZS
+          Jami qarz
+          {filterMonth
+            ? ` (${getMonthName(filterMonth.slice(0, 2))} ${filterMonth.slice(3, 7)})`
+            : ""}
+          : {totalDebt.toLocaleString()} UZS
         </h3>
         <p style={{ margin: "8px 0 0 0", color: "#389e0d" }}>
           Jami qarzdor talabalar: {filteredDebts.length} ta

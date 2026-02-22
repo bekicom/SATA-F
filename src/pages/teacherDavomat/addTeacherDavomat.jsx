@@ -4,7 +4,7 @@ import {
   useGetTeacherDavomatQuery,
   useGetTeachersQuery,
 } from "../../context/service/teacher.service";
-import { Table, Button, message, DatePicker } from "antd";
+import { Table, Button, message, DatePicker, Tag } from "antd";
 import { GiCancel } from "react-icons/gi";
 import { FaChevronLeft, FaCircleCheck } from "react-icons/fa6";
 import moment from "moment";
@@ -16,10 +16,8 @@ const AddTeacherDavomat = () => {
   const [addTeacherDavomat, { isLoading }] = useAddTeacherDavomatMutation();
   const navigate = useNavigate();
 
-  // 📅 Tanlangan sana
   const [selectedDate, setSelectedDate] = useState(moment());
 
-  // 📅 Haftalik kunlar
   const uzbWeek = {
     1: "dushanba",
     2: "seshanba",
@@ -27,18 +25,37 @@ const AddTeacherDavomat = () => {
     4: "payshanba",
     5: "juma",
     6: "shanba",
-    0: "yakshanba", // moment.js da yakshanba = 0
+    0: "yakshanba",
   };
 
   const handleDateChange = (date) => {
     if (date) setSelectedDate(date);
   };
 
-  // ✅ Davomat olish (keldi)
+  // ✅ teacherDavomat strukturasi: [{dateKey, body: [{teacher_id, status}]}]
+  const getDavomatStatus = (teacherId) => {
+    const dateKey = selectedDate.format("YYYY-MM-DD");
+
+    // Shu kunga tegishli hujjatni topamiz
+    const dayDoc = teacherDavomat.find((doc) => doc.dateKey === dateKey);
+    if (!dayDoc || !Array.isArray(dayDoc.body)) return null;
+
+    // Body ichidan o'qituvchini topamiz
+    const entry = dayDoc.body.find(
+      (e) => String(e.teacher_id?._id || e.teacher_id) === String(teacherId),
+    );
+    if (!entry) return null;
+
+    if (entry.status === "keldi" || entry.status === true) return true;
+    if (entry.status === "kelmadi" || entry.status === false) return false;
+    return null;
+  };
+
+  // ✅ Keldi
   const handleAttendance = async (teacher) => {
     if (
       !window.confirm(
-        `${teacher.firstName} ${teacher.lastName}ni "Keldi" deb belgilaysizmi?`
+        `${teacher.firstName} ${teacher.lastName}ni "Keldi" deb belgilaysizmi?`,
       )
     )
       return;
@@ -49,6 +66,7 @@ const AddTeacherDavomat = () => {
     try {
       await addTeacherDavomat({
         teacherId: teacher._id,
+        employeeNo: teacher.employeeNo, // ✅ eski controller uchun ham yuboriladi
         davomatDate: selectedDate.format("YYYY-MM-DD"),
         status: true,
         summ,
@@ -59,11 +77,11 @@ const AddTeacherDavomat = () => {
     }
   };
 
-  // ❌ Davomat olish (kelmadi)
+  // ✅ Kelmadi
   const handleAbsent = async (teacher) => {
     if (
       !window.confirm(
-        `${teacher.firstName} ${teacher.lastName}ni "Kelmadi" deb belgilaysizmi?`
+        `${teacher.firstName} ${teacher.lastName}ni "Kelmadi" deb belgilaysizmi?`,
       )
     )
       return;
@@ -71,6 +89,7 @@ const AddTeacherDavomat = () => {
     try {
       await addTeacherDavomat({
         teacherId: teacher._id,
+        employeeNo: teacher.employeeNo, // ✅ eski controller uchun ham yuboriladi
         davomatDate: selectedDate.format("YYYY-MM-DD"),
         status: false,
         summ: 0,
@@ -81,44 +100,36 @@ const AddTeacherDavomat = () => {
     }
   };
 
-  // 🔍 O'qituvchi tanlangan sanada davomat olganmi?
-  const getDavomatStatus = (teacherId) => {
-    return teacherDavomat.some(
-      (item) =>
-        String(item.teacherId?._id || item.teacherId) === String(teacherId) &&
-        moment(item.davomatDate).format("YYYY-MM-DD") ===
-          selectedDate.format("YYYY-MM-DD")
-    );
-  };
-
-  // 📋 Jadval ustunlari
   const columns = [
-    {
-      title: "№",
-      render: (_, __, index) => index + 1,
-    },
+    { title: "№", render: (_, __, index) => index + 1, width: 50 },
     {
       title: "O'qituvchi to'liq ismi",
       render: (_, record) => `${record.firstName} ${record.lastName}`,
     },
+    { title: "Telefon raqami", dataIndex: "phoneNumber" },
     {
-      title: "Telefon raqami",
-      dataIndex: "phoneNumber",
+      title: "Holat",
+      key: "status",
+      render: (_, record) => {
+        const status = getDavomatStatus(record._id);
+        if (status === null) return <Tag color="default">—</Tag>;
+        if (status === true) return <Tag color="green">Keldi ✅</Tag>;
+        if (status === false) return <Tag color="red">Kelmadi ❌</Tag>;
+      },
     },
     {
       title: "Davomat olish",
       key: "action",
       render: (_, record) => {
-        const alreadyTaken = getDavomatStatus(record._id);
+        const status = getDavomatStatus(record._id);
+        const alreadyTaken = status !== null;
+
         return (
           <>
             <Button
               type="primary"
               danger
-              style={{
-                opacity: alreadyTaken ? 0.5 : 1,
-                marginRight: "8px",
-              }}
+              style={{ opacity: alreadyTaken ? 0.4 : 1, marginRight: "8px" }}
               disabled={alreadyTaken}
               onClick={() => handleAbsent(record)}
               loading={isLoading}
@@ -128,9 +139,9 @@ const AddTeacherDavomat = () => {
             <Button
               type="primary"
               style={{
-                background: "green",
-                borderColor: "green",
-                opacity: alreadyTaken ? 0.5 : 1,
+                background: alreadyTaken ? "#d9d9d9" : "green",
+                borderColor: alreadyTaken ? "#d9d9d9" : "green",
+                opacity: alreadyTaken ? 0.4 : 1,
               }}
               disabled={alreadyTaken}
               onClick={() => handleAttendance(record)}
@@ -146,21 +157,17 @@ const AddTeacherDavomat = () => {
 
   return (
     <div className="page">
-      {/* 📌 Header */}
       <div className="page-header">
         <h1>O'qituvchi uchun davomat olish</h1>
         <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "12px",
-          }}
+          style={{ display: "flex", alignItems: "center", gap: "12px" }}
           className="header__actions"
         >
           <DatePicker
             onChange={handleDateChange}
             placeholder="Sana"
             format="DD-MM-YYYY"
+            defaultValue={moment()}
           />
           <Button onClick={() => navigate("/davomat/teacher")} type="primary">
             <FaChevronLeft />
@@ -168,7 +175,6 @@ const AddTeacherDavomat = () => {
         </div>
       </div>
 
-      {/* 📋 Jadval */}
       <Table
         dataSource={teachers.map((teacher, index) => ({
           ...teacher,
