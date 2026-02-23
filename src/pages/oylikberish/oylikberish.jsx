@@ -5,6 +5,7 @@ import {
   useGetTeachersQuery,
   usePaySalaryMutation,
 } from "../../context/service/oylikberish.service";
+import { useGetTeacherDavomatQuery } from "../../context/service/teacher.service";
 import moment from "moment";
 import { Loading } from "../../components/loading/loading";
 import { saveAs } from "file-saver";
@@ -31,6 +32,7 @@ const Oylikberish = () => {
     error: salaryFetchError,
     isLoading: salaryFetchLoading,
   } = useGetSalaryQuery();
+  const { data: teacherDavomat = [] } = useGetTeacherDavomatQuery();
 
   const [paySalary, { isLoading: salaryLoading }] = usePaySalaryMutation();
 
@@ -91,9 +93,13 @@ const Oylikberish = () => {
     let earned = 0;
     let paid = 0;
     for (const log of salaryDoc.logs) {
-      const amt = Number(log?.amount || 0);
-      if (log?.reason === "davomat") earned += amt;
-      else if (log?.reason === "manual") paid += amt;
+      const amt = Number(
+        log?.amount ?? log?.summ ?? log?.salaryAmount ?? log?.total ?? 0,
+      );
+      const reason = String(log?.reason || "").toLowerCase();
+
+      if (["davomat", "attendance", "daily"].includes(reason)) earned += amt;
+      else if (["manual", "payment", "paid"].includes(reason)) paid += amt;
     }
     return { earned, paid };
   };
@@ -108,24 +114,72 @@ const Oylikberish = () => {
     }, 0);
   };
 
+  const uzbWeek = {
+    1: "dushanba",
+    2: "seshanba",
+    3: "chorshanba",
+    4: "payshanba",
+    5: "juma",
+    6: "shanba",
+    0: "yakshanba",
+  };
+
+  const getDailySumByDate = (teacher, date) => {
+    const dayKey = uzbWeek[moment(date).day()];
+    const daySchedule = Number(teacher?.schedule?.[dayKey] || 0);
+    const price = Number(teacher?.price || 0);
+    return daySchedule * price;
+  };
+
+  const getEarnedFromTeacherDavomat = (teacher, monthYYYYMM) => {
+    if (!teacher || !Array.isArray(teacherDavomat)) return 0;
+
+    return teacherDavomat.reduce((sum, doc) => {
+      const docDate = doc?.date || doc?.dateKey;
+      if (!docDate || moment(docDate).format("YYYY-MM") !== monthYYYYMM) {
+        return sum;
+      }
+
+      const entries = Array.isArray(doc?.body) ? doc.body : [];
+      const entry = entries.find(
+        (e) =>
+          String(e?.teacher_id?._id || e?.teacher_id) === String(teacher._id),
+      );
+      if (!entry) return sum;
+
+      const status = String(entry?.status || "").toLowerCase();
+      const isPresent = status === "keldi" || Boolean(entry?.time);
+      if (!isPresent) return sum;
+
+      const fromEntry = Number(
+        entry?.summ ?? entry?.amount ?? entry?.salaryAmount ?? 0,
+      );
+      if (fromEntry > 0) return sum + fromEntry;
+
+      return sum + getDailySumByDate(teacher, docDate);
+    }, 0);
+  };
+
   // ✅ displayMonth o'zgarganda jadval qayta hisoblanadi
   const withComputed = useMemo(() => {
     return filteredTeachers.map((t) => {
       const sd = findSalaryDoc(t._id, displayMonth);
       const { earned, paid } = getEarnedAndPaidFromLogs(sd);
+      const earnedFromDavomat = getEarnedFromTeacherDavomat(t, displayMonth);
+      const finalEarned = Math.max(earned, earnedFromDavomat);
       const extra = getExtraCharge(t, displayMonth);
-      const total = earned + extra;
+      const total = finalEarned + extra;
       const remaining = total - paid;
       return {
         ...t,
-        _earned: earned,
+        _earned: finalEarned,
         _paid: paid,
         _extra: extra,
         _total: total,
         _remaining: remaining,
       };
     });
-  }, [filteredTeachers, salaryReport, displayMonth]);
+  }, [filteredTeachers, salaryReport, teacherDavomat, displayMonth]);
 
   const handleOpenModal = (teacher) => {
     setSelectedTeacher(teacher);

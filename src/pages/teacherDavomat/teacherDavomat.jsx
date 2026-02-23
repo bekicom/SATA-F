@@ -85,6 +85,24 @@ const [searchTerm, setSearchTerm] = useState("");
     );
   };
 
+  const uzbWeek = {
+    1: "dushanba",
+    2: "seshanba",
+    3: "chorshanba",
+    4: "payshanba",
+    5: "juma",
+    6: "shanba",
+    0: "yakshanba",
+  };
+
+  const getDailySum = (teacher, date) => {
+    if (!teacher) return 0;
+    const dayKey = uzbWeek[moment(date).day()];
+    const daySchedule = Number(teacher.schedule?.[dayKey] || 0);
+    const price = Number(teacher.price || 0);
+    return daySchedule * price;
+  };
+
   // O'qituvchi ismini olish
   const getTeacherName = (id) => {
     const teacher = teachers.find((t) => t._id === id);
@@ -200,6 +218,7 @@ const saveAttendance = async () => {
 
   try {
     const attendanceData = {
+      teacherId: currentTeacher._id,
       employeeNo: currentTeacher.employeeNo,
       davomatDate: normalizeDate(startDate),
     };
@@ -207,6 +226,7 @@ const saveAttendance = async () => {
     // 🔥 KELDI
     if (attendanceType === "arrive") {
       attendanceData.status = "keldi";
+      attendanceData.summ = getDailySum(currentTeacher, startDate);
     }
 
     // 🔥 KETDI (hech qanday vaqt yubormaymiz)
@@ -241,9 +261,11 @@ const saveAttendance = async () => {
   const markAsAbsent = async (teacher) => {
     try {
       const attendanceData = {
+        teacherId: teacher._id,
         employeeNo: teacher.employeeNo,
         davomatDate: normalizeDate(startDate),
         status: "kelmadi",
+        summ: 0,
       };
 
       await addTeacherDavomat(attendanceData).unwrap();

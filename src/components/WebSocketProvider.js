@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import { message } from "antd";
 import moment from "moment";
 
@@ -12,6 +12,16 @@ import {
 import { useAddDavomatByScanMutation } from "../context/service/oquvchiDavomati.service";
 import { useGetCoinQuery } from "../context/service/students.service";
 
+const UZB_WEEK = {
+  1: "dushanba",
+  2: "seshanba",
+  3: "chorshanba",
+  4: "payshanba",
+  5: "juma",
+  6: "shanba",
+  0: "yakshanba",
+};
+
 export const WebSocketProvider = ({ children }) => {
   const wsRef = useRef(null);
 
@@ -20,6 +30,13 @@ export const WebSocketProvider = ({ children }) => {
 
   const { data: teachers = [] } = useGetTeachersQuery();
   const { data: students = [] } = useGetCoinQuery();
+
+  const getTeacherDailySum = useCallback((teacher, dateIso) => {
+    const dayKey = UZB_WEEK[moment(dateIso).day()];
+    const daySchedule = Number(teacher?.schedule?.[dayKey] || 0);
+    const price = Number(teacher?.price || 0);
+    return daySchedule * price;
+  }, []);
 
   useEffect(() => {
     const connectWebSocket = () => {
@@ -59,10 +76,15 @@ export const WebSocketProvider = ({ children }) => {
           );
           if (teacher) {
             try {
+              const davomatDate = moment(dateIso).format("YYYY-MM-DD");
+              const summ = getTeacherDailySum(teacher, dateIso);
+
               await addTeacherDavomat({
+                teacherId: teacher._id,
                 employeeNo: teacher.employeeNo,
-                davomatDate: moment(dateIso).format("YYYY-MM-DD"),
+                davomatDate,
                 status: "keldi",
+                summ,
               }).unwrap();
 
               if (!handled) {
@@ -125,7 +147,13 @@ export const WebSocketProvider = ({ children }) => {
 
     connectWebSocket();
     return () => wsRef.current?.close();
-  }, [teachers, students, addTeacherDavomat, addStudentDavomat]);
+  }, [
+    teachers,
+    students,
+    addTeacherDavomat,
+    addStudentDavomat,
+    getTeacherDailySum,
+  ]);
 
   return <>{children}</>;
 };
