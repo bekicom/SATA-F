@@ -85,6 +85,33 @@ const [searchTerm, setSearchTerm] = useState("");
     );
   };
 
+  const getDocDate = (doc) => doc?.date || doc?.dateKey || doc?.davomatDate;
+
+  const getTeacherIdFromEntry = (entry) =>
+    entry?.teacher_id?._id ||
+    entry?.teacher_id ||
+    entry?.teacherId?._id ||
+    entry?.teacherId;
+
+  const hasArrived = (entry) => {
+    if (!entry) return false;
+    const status = String(entry.status ?? "").toLowerCase();
+    return (
+      status === "keldi" ||
+      status === "leave" ||
+      status === "ketdi" ||
+      entry.status === true ||
+      Boolean(entry.time) ||
+      Boolean(entry.quittedTime)
+    );
+  };
+
+  const isAbsent = (entry) => {
+    if (!entry) return false;
+    const status = String(entry.status ?? "").toLowerCase();
+    return status === "kelmadi" || entry.status === false;
+  };
+
   const uzbWeek = {
     1: "dushanba",
     2: "seshanba",
@@ -130,13 +157,13 @@ const filteredTeachers = useMemo(() => {
 
       const attendanceDoc = davomatData.find(
         (doc) =>
-          normalizeDate(doc.date) === normalizedDate &&
+          normalizeDate(getDocDate(doc)) === normalizedDate &&
           Array.isArray(doc.body) &&
           doc.body.some(
             (b) =>
               b &&
-              b.teacher_id &&
-              String(b.teacher_id._id || b.teacher_id) === String(teacherId),
+              getTeacherIdFromEntry(b) &&
+              String(getTeacherIdFromEntry(b)) === String(teacherId),
           ),
       );
 
@@ -145,8 +172,8 @@ const filteredTeachers = useMemo(() => {
       return attendanceDoc.body.find(
         (b) =>
           b &&
-          b.teacher_id &&
-          String(b.teacher_id._id || b.teacher_id) === String(teacherId),
+          getTeacherIdFromEntry(b) &&
+          String(getTeacherIdFromEntry(b)) === String(teacherId),
       );
     };
   }, [davomatData]);
@@ -156,11 +183,11 @@ const filteredTeachers = useMemo(() => {
     const entry = findTeacherEntry(teacherId, date);
     if (!entry) return null;
 
-    if (entry.status?.toLowerCase() === "kelmadi") {
+    if (isAbsent(entry)) {
       return "Kelmadi";
     }
 
-    if (entry.status?.toLowerCase() === "keldi" || entry.time) {
+    if (hasArrived(entry)) {
       return "Keldi";
     }
 
@@ -216,23 +243,26 @@ const saveAttendance = async () => {
     return;
   }
 
+  if (!arrivalTime) {
+    message.error("Kelish vaqtini kiriting!");
+    return;
+  }
+
+  if (attendanceType === "leave" && !leaveTime) {
+    message.error("Ketish vaqtini kiriting!");
+    return;
+  }
+
   try {
     const attendanceData = {
       teacherId: currentTeacher._id,
       employeeNo: currentTeacher.employeeNo,
       davomatDate: normalizeDate(startDate),
+      status: attendanceType === "leave" ? "leave" : "keldi",
+      summ: getDailySum(currentTeacher, startDate),
+      time: arrivalTime.format("HH:mm"),
+      quittedTime: leaveTime ? leaveTime.format("HH:mm") : undefined,
     };
-
-    // 🔥 KELDI
-    if (attendanceType === "arrive") {
-      attendanceData.status = "keldi";
-      attendanceData.summ = getDailySum(currentTeacher, startDate);
-    }
-
-    // 🔥 KETDI (hech qanday vaqt yubormaymiz)
-    if (attendanceType === "leave") {
-      attendanceData.status = "leave";
-    }
 
     await addTeacherDavomat(attendanceData).unwrap();
 
@@ -311,9 +341,9 @@ const saveAttendance = async () => {
       let quittedTime = "-";
 
       if (entry) {
-        if (entry.status?.toLowerCase() === "keldi" || entry.time) {
+        if (hasArrived(entry)) {
           status = "keldi";
-        } else if (entry.status?.toLowerCase() === "kelmadi") {
+        } else if (isAbsent(entry)) {
           status = "kelmadi";
         }
 
@@ -729,6 +759,22 @@ const saveAttendance = async () => {
                       )}
                     </td>
 
+                    <td
+                      style={{
+                        padding: "12px 8px",
+                        borderBottom: "1px solid #f0f0f0",
+                        textAlign: "center",
+                      }}
+                    >
+                      {item.time !== "-" ? (
+                        <Tag color="green" style={{ fontFamily: "monospace" }}>
+                          <FaClock style={{ marginRight: "4px" }} />
+                          {item.time}
+                        </Tag>
+                      ) : (
+                        <span style={{ color: "#ccc" }}>-</span>
+                      )}
+                    </td>
                     <td
                       style={{
                         padding: "12px 8px",
