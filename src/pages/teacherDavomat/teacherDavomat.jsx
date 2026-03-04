@@ -85,7 +85,7 @@ const [searchTerm, setSearchTerm] = useState("");
     );
   };
 
-  const getDocDate = (doc) => doc?.date || doc?.dateKey || doc?.davomatDate;
+  const getDocDate = (doc) => doc?.dateKey || doc?.date || doc?.davomatDate;
 
   const getTeacherIdFromEntry = (entry) =>
     entry?.teacher_id?._id ||
@@ -110,6 +110,44 @@ const [searchTerm, setSearchTerm] = useState("");
     if (!entry) return false;
     const status = String(entry.status ?? "").toLowerCase();
     return status === "kelmadi" || entry.status === false;
+  };
+
+  const normalizeTime = (value) => {
+    if (!value) return "-";
+    const raw = String(value).trim();
+    if (!raw) return "-";
+    const hhmmMatch = raw.match(/\b([01]?\d|2[0-3]):([0-5]\d)\b/);
+    if (!hhmmMatch) return raw;
+    return `${hhmmMatch[1].padStart(2, "0")}:${hhmmMatch[2]}`;
+  };
+
+  const getEntryTimes = (entry) => {
+    if (!entry) return { arrival: "-", quitted: "-" };
+
+    const status = String(entry?.status ?? "").toLowerCase();
+    const rawArrival = entry?.arrivedTime || entry?.arrivalTime;
+    const rawQuitted =
+      entry?.quittedTime ||
+      entry?.leaveTime ||
+      entry?.leftTime ||
+      entry?.quitTime ||
+      entry?.outTime ||
+      entry?.quitted_time ||
+      entry?.leave_time ||
+      entry?.left_time;
+
+    // Ba'zi backendlarda leave holatda faqat `time` saqlanadi.
+    // Shunday bo'lsa `time` ni ketish vaqti deb qabul qilamiz.
+    const fallbackTime = entry?.time;
+
+    const arrival = normalizeTime(
+      rawArrival || (status !== "leave" && status !== "ketdi" ? fallbackTime : null),
+    );
+    const quitted = normalizeTime(
+      rawQuitted || (status === "leave" || status === "ketdi" ? fallbackTime : null),
+    );
+
+    return { arrival, quitted };
   };
 
   const uzbWeek = {
@@ -150,33 +188,60 @@ const filteredTeachers = useMemo(() => {
     });
 }, [teachers, searchTerm]);
 
-  // O'qituvchi entry topish - optimized with useMemo
-  const findTeacherEntry = useMemo(() => {
-    return (teacherId, date) => {
-      const normalizedDate = normalizeDate(date);
+  // O'qituvchi entry topish: bir kunda bir nechta yozuv bo'lsa birlashtiramiz
+  const findTeacherEntry = (teacherId, date) => {
+    const normalizedDate = normalizeDate(date);
 
-      const attendanceDoc = davomatData.find(
-        (doc) =>
-          normalizeDate(getDocDate(doc)) === normalizedDate &&
-          Array.isArray(doc.body) &&
-          doc.body.some(
-            (b) =>
-              b &&
-              getTeacherIdFromEntry(b) &&
-              String(getTeacherIdFromEntry(b)) === String(teacherId),
-          ),
-      );
+    const dayDocs = davomatData.filter(
+      (doc) =>
+        normalizeDate(getDocDate(doc)) === normalizedDate && Array.isArray(doc.body),
+    );
 
-      if (!attendanceDoc) return null;
+    if (!dayDocs.length) return null;
 
-      return attendanceDoc.body.find(
+    const matchedEntries = dayDocs.flatMap((doc) =>
+      doc.body.filter(
         (b) =>
           b &&
           getTeacherIdFromEntry(b) &&
           String(getTeacherIdFromEntry(b)) === String(teacherId),
-      );
+      ),
+    );
+
+    if (!matchedEntries.length) return null;
+
+    const reversed = [...matchedEntries].reverse();
+    const base = reversed[0];
+
+    const arrival =
+      reversed
+        .map((e) => getEntryTimes(e).arrival)
+        .find((v) => v && v !== "-") || "-";
+    const quitted =
+      reversed
+        .map((e) => getEntryTimes(e).quitted)
+        .find((v) => v && v !== "-") || "-";
+
+    const hasLeaveStatus = matchedEntries.some((e) =>
+      ["leave", "ketdi"].includes(String(e?.status ?? "").toLowerCase()),
+    );
+    const hasArriveStatus = matchedEntries.some((e) =>
+      ["keldi"].includes(String(e?.status ?? "").toLowerCase()),
+    );
+    const hasAbsentStatus = matchedEntries.some((e) => isAbsent(e));
+
+    let mergedStatus = base?.status;
+    if (hasLeaveStatus) mergedStatus = "ketdi";
+    else if (hasArriveStatus) mergedStatus = "keldi";
+    else if (hasAbsentStatus) mergedStatus = "kelmadi";
+
+    return {
+      ...base,
+      status: mergedStatus,
+      time: arrival !== "-" ? arrival : base?.time,
+      quittedTime: quitted !== "-" ? quitted : base?.quittedTime,
     };
-  }, [davomatData]);
+  };
 
   // Status olish
   const getStatus = (teacherId, date) => {
@@ -196,12 +261,12 @@ const filteredTeachers = useMemo(() => {
 
   const getArrivedTime = (teacherId) => {
     const entry = findTeacherEntry(teacherId, startDate);
-    return entry?.time || "-";
+    return getEntryTimes(entry).arrival;
   };
 
   const getQuittedTime = (teacherId) => {
     const entry = findTeacherEntry(teacherId, startDate);
-    return entry?.quittedTime || "-";
+    return getEntryTimes(entry).quitted;
   };
 
   // Qo'lda davomat belgilash
@@ -217,8 +282,9 @@ const filteredTeachers = useMemo(() => {
     } else {
       setLeaveTime(currentTime);
       const existingEntry = findTeacherEntry(teacher._id, startDate);
-      if (existingEntry?.time) {
-        setArrivalTime(moment(existingEntry.time, "HH:mm"));
+      const existingArrival = getEntryTimes(existingEntry).arrival;
+      if (existingArrival !== "-") {
+        setArrivalTime(moment(existingArrival, "HH:mm"));
       } else {
         message.warning("Avval kelish vaqtini belgilang!");
         return;
@@ -258,10 +324,17 @@ const saveAttendance = async () => {
       teacherId: currentTeacher._id,
       employeeNo: currentTeacher.employeeNo,
       davomatDate: normalizeDate(startDate),
-      status: attendanceType === "leave" ? "leave" : "keldi",
+      status: attendanceType === "leave" ? "ketdi" : "keldi",
       summ: getDailySum(currentTeacher, startDate),
-      time: arrivalTime.format("HH:mm"),
-      quittedTime: leaveTime ? leaveTime.format("HH:mm") : undefined,
+      // `time` ayrim backendlarda yagona vaqt field bo'lishi mumkin.
+      time:
+        attendanceType === "leave"
+          ? leaveTime?.format("HH:mm")
+          : arrivalTime.format("HH:mm"),
+      arrivedTime: arrivalTime?.format("HH:mm"),
+      arrivalTime: arrivalTime?.format("HH:mm"),
+      quittedTime: leaveTime?.format("HH:mm"),
+      leaveTime: leaveTime?.format("HH:mm"),
     };
 
     await addTeacherDavomat(attendanceData).unwrap();
@@ -347,8 +420,9 @@ const saveAttendance = async () => {
           status = "kelmadi";
         }
 
-        time = entry.time || "-";
-        quittedTime = entry.quittedTime || "-";
+        const { arrival, quitted } = getEntryTimes(entry);
+        time = arrival;
+        quittedTime = quitted;
       }
 
       result.push({
@@ -771,6 +845,8 @@ const saveAttendance = async () => {
                           <FaClock style={{ marginRight: "4px" }} />
                           {item.time}
                         </Tag>
+                      ) : item.quittedTime !== "-" ? (
+                        <Tag color="warning">Kelish yo'q</Tag>
                       ) : (
                         <span style={{ color: "#ccc" }}>-</span>
                       )}
@@ -979,6 +1055,8 @@ const saveAttendance = async () => {
                         <FaClock style={{ marginRight: "4px" }} />
                         {arrivedTime}
                       </Tag>
+                    ) : quittedTime !== "-" ? (
+                      <Tag color="warning">Kelish yo'q</Tag>
                     ) : (
                       <span style={{ color: "#ccc" }}>-</span>
                     )}
