@@ -56,8 +56,10 @@ const AddTeacherDavomatByScan = () => {
 
       await addTeacherDavomat({
         teacherId: teacher._id,
-        davomatDate: moment().format("DD-MM-YYYY"),
-        status: true,
+        employeeNo: teacher.employeeNo,
+        davomatDate: moment().format("YYYY-MM-DD"),
+        scanDateTime: moment().toISOString(),
+        status: "keldi",
         summ,
       }).unwrap();
 

@@ -125,7 +125,7 @@ const [searchTerm, setSearchTerm] = useState("");
     if (!entry) return { arrival: "-", quitted: "-" };
 
     const status = String(entry?.status ?? "").toLowerCase();
-    const rawArrival = entry?.arrivedTime || entry?.arrivalTime;
+    const rawArrival = entry?.arrivedTime || entry?.arrivalTime || entry?.time;
     const rawQuitted =
       entry?.quittedTime ||
       entry?.leaveTime ||
@@ -136,15 +136,16 @@ const [searchTerm, setSearchTerm] = useState("");
       entry?.leave_time ||
       entry?.left_time;
 
-    // Ba'zi backendlarda leave holatda faqat `time` saqlanadi.
-    // Shunday bo'lsa `time` ni ketish vaqti deb qabul qilamiz.
-    const fallbackTime = entry?.time;
+    const hasDedicatedLeaveTime = Boolean(rawQuitted);
+    const legacyLeaveOnlyTime =
+      !hasDedicatedLeaveTime &&
+      (status === "leave" || status === "ketdi") &&
+      !entry?.arrivedTime &&
+      !entry?.arrivalTime;
 
-    const arrival = normalizeTime(
-      rawArrival || (status !== "leave" && status !== "ketdi" ? fallbackTime : null),
-    );
+    const arrival = normalizeTime(legacyLeaveOnlyTime ? null : rawArrival);
     const quitted = normalizeTime(
-      rawQuitted || (status === "leave" || status === "ketdi" ? fallbackTime : null),
+      rawQuitted || (legacyLeaveOnlyTime ? entry?.time : null),
     );
 
     return { arrival, quitted };

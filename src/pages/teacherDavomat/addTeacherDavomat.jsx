@@ -68,7 +68,7 @@ const AddTeacherDavomat = () => {
         teacherId: teacher._id,
         employeeNo: teacher.employeeNo, // ✅ eski controller uchun ham yuboriladi
         davomatDate: selectedDate.format("YYYY-MM-DD"),
-        status: true,
+        status: "keldi",
         summ,
       }).unwrap();
       message.success("✅ Davomat olindi (Keldi)!");
@@ -91,7 +91,7 @@ const AddTeacherDavomat = () => {
         teacherId: teacher._id,
         employeeNo: teacher.employeeNo, // ✅ eski controller uchun ham yuboriladi
         davomatDate: selectedDate.format("YYYY-MM-DD"),
-        status: false,
+        status: "kelmadi",
         summ: 0,
       }).unwrap();
       message.success("✅ Davomat olindi (Kelmadi)!");

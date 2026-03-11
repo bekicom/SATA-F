@@ -84,6 +84,7 @@ export const WebSocketProvider = ({ children }) => {
                 employeeNo: teacher.employeeNo,
                 davomatDate,
                 status: "keldi",
+                scanDateTime: dateIso,
                 summ,
               }).unwrap();
 
